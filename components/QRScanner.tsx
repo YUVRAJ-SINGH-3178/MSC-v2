@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import {
   Camera,
   CheckCircle2,
@@ -77,6 +77,15 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
+  // The scanner callback is handed to html5-qrcode once, at start time, so it
+  // closes over the first render. Mutable UI state (the sound toggle) is read
+  // through a ref instead, otherwise toggling it after mount has no effect on
+  // scan feedback.
+  const soundEnabledRef = useRef(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
   // Audio and Haptic Synthesizer
   const playFeedback = (outcome: ScanOutcome) => {
     // Haptic feedback
@@ -95,7 +104,7 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
     }
 
     // Audio cue
-    if (!soundEnabled || typeof window === 'undefined') return;
+    if (!soundEnabledRef.current || typeof window === 'undefined') return;
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioContextClass();
@@ -253,7 +262,28 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
   }, [syncOfflineQueue, updateDBCounts]);
 
   // Camera Scanner Lifecycle
+  //
+  // html5-qrcode is asynchronous and stateful: `stop()` throws
+  // "Cannot stop, scanner is not running or paused." whenever the scanner is
+  // not past NOT_STARTED — i.e. `start()` is still pending, `start()` failed,
+  // or it was already stopped. React StrictMode also mounts effects twice in
+  // development (mount -> start -> immediate cleanup -> stop), which lands
+  // squarely in that window, logged the console error and could leave the
+  // camera running with nobody to stop it.
+  //
+  // So: start/stop requests are queued and applied strictly in order, and each
+  // one checks the scanner state before touching it.
+  const scanOpsRef = useRef<Promise<void>>(Promise.resolve());
+
+  const enqueueScanOp = (operation: () => Promise<void>) => {
+    scanOpsRef.current = scanOpsRef.current.then(operation).catch((err) => {
+      console.error('Scanner lifecycle operation failed:', err);
+    });
+  };
+
   const startScanner = async () => {
+    if (scannerRef.current) return; // already started (queued after a start)
+
     try {
       const html5QrCode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5QrCode;
@@ -267,25 +297,42 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
       setScannerActive(true);
     } catch (err) {
       console.error('Failed to start camera scanner:', err);
+      // The instance never reached a scanning state; drop it so the next
+      // queued start begins clean.
+      scannerRef.current = null;
     }
   };
 
   const stopScanner = async () => {
-    if (scannerRef.current) {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    setScannerActive(false);
+    if (!scanner) return;
+
+    try {
+      // NOT_STARTED means the camera never opened (start() failed, or the
+      // instance was already stopped) — stop() would throw and there is
+      // nothing to release.
+      if (scanner.getState() !== Html5QrcodeScannerState.NOT_STARTED) {
+        await scanner.stop();
+      }
+    } catch (err) {
+      console.error('Error stopping scanner:', err);
+    } finally {
       try {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      } catch (err) {
-        console.error('Error stopping scanner:', err);
+        // Empty the viewport so a re-queued start() does not stack a second
+        // video element on top of the old one. Only throws while scanning.
+        scanner.clear();
+      } catch {
+        // Nothing to clear.
       }
     }
-    setScannerActive(false);
   };
 
   useEffect(() => {
-    startScanner();
+    enqueueScanOp(startScanner);
     return () => {
-      stopScanner();
+      enqueueScanOp(stopScanner);
     };
   }, []);
 
@@ -436,8 +483,12 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
   };
 
   const onScanSuccess = async (decodedText: string) => {
-    if (scannerRef.current) {
-      scannerRef.current.pause();
+    // pause()/resume() both throw unless the scanner is in the matching state,
+    // so check before calling: a second callback can land before the pause
+    // takes effect, and the 2s cooldown below can outlive the component.
+    const scanner = scannerRef.current;
+    if (scanner && scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+      scanner.pause();
     }
 
     let hash = decodedText.trim();
@@ -450,8 +501,9 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
     await processCheckin(hash);
 
     setTimeout(() => {
-      if (scannerRef.current) {
-        scannerRef.current.resume();
+      const active = scannerRef.current;
+      if (active && active.getState() === Html5QrcodeScannerState.PAUSED) {
+        active.resume();
       }
     }, 2000);
   };

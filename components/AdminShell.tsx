@@ -135,11 +135,7 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
   const currentItem = allItems.find((item) => isLinkActive(item.href)) || { name: 'Dashboard', href: '/admin' };
 
   // Initials for avatar
-  const initials = userEmail
-    ? userEmail.slice(0, 2).toUpperCase()
-    : userRole === 'admin'
-    ? 'AD'
-    : 'CR';
+  const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'AD';
 
   return (
     <div
@@ -431,7 +427,7 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
                   whiteSpace: 'nowrap',
                 }}
               >
-                {userRole === 'admin' ? 'Admin' : 'Core'}
+                {userRole === 'admin' ? 'Admin' : 'Member'}
               </span>
             </button>
 
@@ -459,7 +455,7 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
                     {userEmail || 'Organizer'}
                   </div>
                   <span
-                    className={`fluent-badge ${userRole === 'admin' ? 'badge-primary' : 'badge-info'}`}
+                    className="fluent-badge badge-primary"
                     style={{ marginTop: '4px', display: 'inline-block' }}
                   >
                     Role: {userRole || 'admin'}

@@ -70,7 +70,7 @@ export default function Navbar() {
       await supabase.auth.signOut();
     } catch {}
     setIsLoggedIn(false);
-    setUserRole('user');
+    setUserRole('member');
     window.location.href = '/login';
   };
 
@@ -89,7 +89,7 @@ export default function Navbar() {
     { name: 'Team', href: '/team', icon: Users },
   ];
 
-  const isStaff = userRole === 'admin' || userRole === 'core_member';
+  const isAdmin = userRole === 'admin';
 
   // Do not render public navbar on admin portal
   if (pathname?.startsWith('/admin')) {
@@ -251,7 +251,7 @@ export default function Navbar() {
 
             {/* Admin / Login links (Desktop) */}
             <div className="desktop-auth-controls" style={{ display: 'none', alignItems: 'center', gap: '8px' }}>
-              {isStaff ? (
+              {isAdmin ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Link
                     href="/admin"
@@ -468,7 +468,7 @@ export default function Navbar() {
               gap: '12px',
             }}
           >
-            {isStaff ? (
+            {isAdmin ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <Link
                   href="/admin"

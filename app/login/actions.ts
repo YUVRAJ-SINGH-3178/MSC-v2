@@ -49,7 +49,7 @@ async function resolveLanding(supabase: Awaited<ReturnType<typeof createClient>>
     .eq('id', session.user.id)
     .single();
 
-  if (profile?.role === 'admin' || profile?.role === 'core_member') return '/admin';
+  if (profile?.role === 'admin') return '/admin';
   if (profile && !profile.is_onboarded) return '/onboarding';
   return '/';
 }

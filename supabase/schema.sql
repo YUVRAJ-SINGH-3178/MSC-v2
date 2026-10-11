@@ -1,16 +1,19 @@
--- ==============================================================================
--- MSC SRM AP - Production Database Schema & Hardening
--- Grounded in production requirements with concurrency, idempotency & RLS
--- ==============================================================================
+-- =============================================================================
+-- MSC SRMAP — Full Supabase / PostgreSQL schema (two-role edition)
+-- Run this once in a NEW Supabase project's SQL Editor.
+-- =============================================================================
 
 create extension if not exists pgcrypto;
 
--- 1. MEMBER PROFILES (1:1 with auth.users)
+-- -----------------------------------------------------------------------------
+-- 1. member_profiles  (1:1 with auth.users)
+-- -----------------------------------------------------------------------------
 create table if not exists public.member_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
   full_name text,
-  role text not null default 'user' check (role in ('admin', 'core_member', 'user')),
+  role text not null default 'member'
+    check (role in ('admin', 'member')),
   registration_number text,
   phone_number text,
   department text,
@@ -22,60 +25,73 @@ create table if not exists public.member_profiles (
   updated_at timestamptz not null default now()
 );
 
--- Helper function to break RLS recursion: returns role of current authenticated user
-create or replace function public.current_user_role()
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  v_role text;
-begin
-  select role into v_role from public.member_profiles where id = auth.uid();
-  return coalesce(v_role, 'user');
-end;
-$$;
+create index if not exists member_profiles_role_idx on public.member_profiles(role);
+create index if not exists member_profiles_email_idx on public.member_profiles(email);
 
--- Auto-create profile on signup
+-- Auto-create profile when a user signs up
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
   insert into public.member_profiles (id, email, role, is_onboarded)
-  values (new.id, new.email, 'user', false)
+  values (
+    new.id,
+    new.email,
+    'member',
+    false
+  )
   on conflict (id) do nothing;
   return new;
 end;
 $$;
 
 drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created after insert on auth.users
+create trigger on_auth_user_created
+  after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- 2. EVENTS
+-- -----------------------------------------------------------------------------
+-- 2. events
+-- -----------------------------------------------------------------------------
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   slug text unique,
   description text,
   location text,
-  type text,
-  status text not null default 'upcoming' check (status in ('upcoming', 'completed')),
+  type text,                              -- hackathon | workshop | event | ...
+  status text not null default 'upcoming'
+    check (status in ('upcoming', 'completed')),
   date_start timestamptz,
   date_end timestamptz,
   image_url text,
   banner_url text,
   registration_open boolean not null default false,
-  show_opening_soon boolean not null default false,
+  show_opening_soon boolean not null default false,  -- show "Opening Soon" teaser page when registration_open is false
   is_published boolean not null default true,
   max_capacity integer,
   form_requirements jsonb not null default '{}'::jsonb,
+  -- form_requirements keys used by the app:
+  --   req_reg_num, req_branch, req_spec, allow_teams, allow_external_students,
+  --   max_team_size, provide_certificates, certificate_html,
+  --   event_pricing ('free'|'paid'), charge_type ('per_person'|'per_team'),
+  --   registration_fee, agenda[], speakers[]
   certificate_html text,
   gallery_urls text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_events_status_date on public.events(status, date_start desc);
 create index if not exists idx_events_slug on public.events(slug);
+create index if not exists events_status_date_idx on public.events(status, date_start desc);
+create index if not exists events_published_idx on public.events(is_published);
 
--- 3. REGISTRATIONS
+-- -----------------------------------------------------------------------------
+-- 3. registrations
+-- -----------------------------------------------------------------------------
 create table if not exists public.registrations (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
@@ -83,7 +99,11 @@ create table if not exists public.registrations (
   lead_email text not null,
   hash_payload uuid not null default gen_random_uuid(),
   form_data jsonb not null default '{}'::jsonb,
+  -- form_data keys: fullName, email, year, regNum, branch, specialization,
+  --   collegeName, city, payment_data, certificate_type ('none'|'participation'|'winner'|'runner_up')
   team_data jsonb,
+  -- team_data keys: team_id, team_name / teamName, members[], team_lead_index / leadIndex
+  -- members[]: { fullName, email, year, regNum, branch, checked_in }
   checked_in boolean not null default false,
   status text not null default 'confirmed'
     check (status in ('pending_payment', 'confirmed', 'waitlisted', 'cancelled')),
@@ -93,12 +113,25 @@ create table if not exists public.registrations (
   updated_at timestamptz not null default now()
 );
 
-create unique index if not exists idx_registrations_hash_payload on public.registrations(hash_payload);
-create unique index if not exists idx_registrations_event_lead_email on public.registrations(event_id, lower(lead_email));
-create unique index if not exists idx_registrations_event_user_id on public.registrations(event_id, user_id) where user_id is not null;
-create index if not exists idx_registrations_event_status on public.registrations(event_id, status, created_at desc);
+create unique index if not exists registrations_hash_payload_unique
+  on public.registrations(hash_payload);
+create unique index if not exists registrations_event_lead_email_unique
+  on public.registrations(event_id, lower(lead_email));
+create unique index if not exists registrations_event_user_unique
+  on public.registrations(event_id, user_id) where user_id is not null;
+create unique index if not exists registrations_event_idempotency_unique
+  on public.registrations(event_id, user_id, idempotency_key)
+  where user_id is not null and idempotency_key is not null;
+create index if not exists registrations_event_status_created_idx
+  on public.registrations(event_id, status, created_at desc);
+create index if not exists idx_registrations_hash_payload
+  on public.registrations(hash_payload);
+create index if not exists registrations_hash_payload_idx
+  on public.registrations(hash_payload);
 
--- 4. TEAMS (Matchmaking)
+-- -----------------------------------------------------------------------------
+-- 4. teams  (matchmaking / open teams)
+-- -----------------------------------------------------------------------------
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
@@ -113,14 +146,20 @@ create table if not exists public.teams (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_teams_event_looking on public.teams(event_id, looking_for_members);
+create index if not exists teams_event_looking_idx
+  on public.teams(event_id, looking_for_members);
+create index if not exists teams_registration_id_idx
+  on public.teams(registration_id);
 
--- 5. TEAM MEMBERS (Public /team roster)
+-- -----------------------------------------------------------------------------
+-- 5. team_members  (public /team page roster)
+-- -----------------------------------------------------------------------------
 create table if not exists public.team_members (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   role text,
-  tier text default 'member' check (tier is null or tier in ('chief','president','board','lead','member')),
+  tier text default 'member'
+    check (tier is null or tier in ('chief', 'president', 'board', 'lead', 'member')),
   category text default 'team',
   email text,
   linkedin_url text,
@@ -129,12 +168,15 @@ create table if not exists public.team_members (
   instagram_url text,
   portfolio_url text,
   image_url text,
-  display_order integer default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- 6. GALLERY ITEMS
+create index if not exists team_members_tier_idx on public.team_members(tier);
+
+-- -----------------------------------------------------------------------------
+-- 6. gallery_items
+-- -----------------------------------------------------------------------------
 create table if not exists public.gallery_items (
   id uuid primary key default gen_random_uuid(),
   title text,
@@ -144,17 +186,30 @@ create table if not exists public.gallery_items (
   created_at timestamptz not null default now()
 );
 
--- 7. PASSWORD RESET REQUESTS
+create index if not exists gallery_items_created_idx
+  on public.gallery_items(created_at desc);
+create index if not exists gallery_items_category_idx
+  on public.gallery_items(category);
+
+-- -----------------------------------------------------------------------------
+-- 7. password_reset_requests
+-- -----------------------------------------------------------------------------
 create table if not exists public.password_reset_requests (
   id uuid primary key default gen_random_uuid(),
   email text not null,
-  new_password text not null, -- AES-256-GCM ciphertext
-  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  new_password text not null,           -- encrypted blob from app (utils/security.ts)
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- 8. PAYMENTS & PAYMENT ORDERS
+create index if not exists password_reset_requests_status_idx
+  on public.password_reset_requests(status, created_at desc);
+
+-- -----------------------------------------------------------------------------
+-- 8. payments + payment_orders  (Razorpay hardening)
+-- -----------------------------------------------------------------------------
 create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   event_id uuid references public.events(id) on delete set null,
@@ -171,6 +226,11 @@ create table if not exists public.payments (
   created_at timestamptz not null default now()
 );
 
+create unique index if not exists payments_razorpay_payment_id_unique
+  on public.payments(razorpay_payment_id) where razorpay_payment_id is not null;
+create unique index if not exists payments_razorpay_order_id_unique
+  on public.payments(razorpay_order_id) where razorpay_order_id is not null;
+
 create table if not exists public.payment_orders (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete restrict,
@@ -181,272 +241,173 @@ create table if not exists public.payment_orders (
   amount integer not null check (amount > 0 and amount <= 10000000),
   currency text not null default 'INR' check (currency = 'INR'),
   status text not null default 'creating'
-    check (status in ('creating','created','paid','failed','cancelled')),
+    check (status in ('creating', 'created', 'paid', 'failed', 'cancelled')),
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, event_id, idempotency_key)
 );
 
--- ==============================================================================
--- SECURITY DEFINER RPCs
--- ==============================================================================
+create index if not exists payment_orders_order_id_idx
+  on public.payment_orders(razorpay_order_id);
+create index if not exists payment_orders_expiry_idx
+  on public.payment_orders(status, expires_at);
 
--- Atomic event registration RPC
+-- -----------------------------------------------------------------------------
+-- 9. RPC helpers (authenticated paid registration path)
+-- -----------------------------------------------------------------------------
 create or replace function public.register_for_event(
   p_event_id uuid,
-  p_user_id uuid,
-  p_lead_email text,
+  p_idempotency_key uuid,
   p_form_data jsonb,
   p_team_data jsonb,
-  p_idempotency_key uuid
-)
-returns jsonb
+  p_hash_payload uuid
+) returns table (registration_id uuid, registration_status text, payment_required boolean)
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_event record;
-  v_existing record;
-  v_confirmed_count int;
+  v_event public.events%rowtype;
+  v_existing public.registrations%rowtype;
+  v_registered_count integer;
+  v_pricing text;
   v_status text;
-  v_expires_at timestamptz;
-  v_registration_id uuid;
-  v_hash_payload uuid;
 begin
-  -- 1. Check idempotency: if registration with same key exists, return it
-  if p_idempotency_key is not null then
-    select * into v_existing from public.registrations where idempotency_key = p_idempotency_key;
-    if found then
-      return jsonb_build_object(
-        'success', true,
-        'registration_id', v_existing.id,
-        'hash_payload', v_existing.hash_payload,
-        'status', v_existing.status,
-        'replayed', true
-      );
-    end if;
-  end if;
-
-  -- 2. Lock event row for atomic check
+  if auth.uid() is null then raise exception 'authentication required'; end if;
   select * into v_event from public.events where id = p_event_id for update;
-  if not found then
-    return jsonb_build_object('success', false, 'error', 'Event not found');
+  if not found or not coalesce(v_event.registration_open, false) or v_event.status = 'completed' then
+    raise exception 'registration is closed or this event is not available';
   end if;
 
-  if not v_event.registration_open then
-    return jsonb_build_object('success', false, 'error', 'Registration is closed for this event');
-  end if;
-
-  -- Check duplicate registration
-  if p_user_id is not null then
-    select * into v_existing from public.registrations
-    where event_id = p_event_id and user_id = p_user_id and status != 'cancelled';
-    if found then
-      return jsonb_build_object(
-        'success', true,
-        'registration_id', v_existing.id,
-        'hash_payload', v_existing.hash_payload,
-        'status', v_existing.status,
-        'replayed', true
-      );
-    end if;
-  end if;
-
-  select * into v_existing from public.registrations
-  where event_id = p_event_id and lower(lead_email) = lower(p_lead_email) and status != 'cancelled';
+  select * into v_existing
+    from public.registrations
+   where event_id = p_event_id and user_id = auth.uid()
+   limit 1;
   if found then
-    return jsonb_build_object(
-      'success', true,
-      'registration_id', v_existing.id,
-      'hash_payload', v_existing.hash_payload,
-      'status', v_existing.status,
-      'replayed', true
-    );
+    if v_existing.idempotency_key = p_idempotency_key then
+      return query select v_existing.id, v_existing.status, (v_existing.status = 'pending_payment');
+      return;
+    end if;
+    raise exception 'already registered for this event';
   end if;
 
-  -- 3. Check capacity
-  select count(*) into v_confirmed_count
-  from public.registrations
-  where event_id = p_event_id
-    and (status = 'confirmed' or (status = 'pending_payment' and reservation_expires_at > now()));
+  select count(*) into v_registered_count
+    from public.registrations
+   where event_id = p_event_id
+     and status in ('confirmed', 'pending_payment')
+     and (status <> 'pending_payment' or reservation_expires_at > now());
 
-  -- Determine initial status
-  if v_event.max_capacity is not null and v_confirmed_count >= v_event.max_capacity then
+  if v_event.max_capacity is not null and v_registered_count >= v_event.max_capacity then
     v_status := 'waitlisted';
-    v_expires_at := null;
-  elsif (v_event.form_requirements->>'event_pricing') = 'paid' then
-    v_status := 'pending_payment';
-    v_expires_at := now() + interval '15 minutes';
   else
-    v_status := 'confirmed';
-    v_expires_at := null;
+    v_pricing := coalesce(v_event.form_requirements->>'event_pricing', 'free');
+    v_status := case when v_pricing = 'paid' then 'pending_payment' else 'confirmed' end;
   end if;
 
-  -- 4. Insert registration
   insert into public.registrations (
-    event_id,
-    user_id,
-    lead_email,
-    form_data,
-    team_data,
-    status,
-    idempotency_key,
-    reservation_expires_at
+    event_id, user_id, lead_email, form_data, team_data, hash_payload,
+    status, idempotency_key, reservation_expires_at
   ) values (
     p_event_id,
-    p_user_id,
-    p_lead_email,
+    auth.uid(),
+    coalesce(auth.jwt()->>'email', ''),
     p_form_data,
     p_team_data,
+    p_hash_payload,
     v_status,
     p_idempotency_key,
-    v_expires_at
-  ) returning id, hash_payload into v_registration_id, v_hash_payload;
-
-  -- 5. If team is looking for members, register in matchmaking table
-  if p_team_data is not null and (p_team_data->>'looking_for_members')::boolean is true then
-    insert into public.teams (
-      event_id,
-      registration_id,
-      team_name,
-      leader_name,
-      leader_email,
-      leader_year,
-      leader_branch,
-      looking_for_members
-    ) values (
-      p_event_id,
-      v_registration_id,
-      coalesce(p_team_data->>'team_name', 'Team'),
-      coalesce(p_team_data->>'leader_name', ''),
-      p_lead_email,
-      coalesce(p_team_data->>'leader_year', ''),
-      coalesce(p_team_data->>'leader_branch', ''),
-      true
-    );
-  end if;
-
-  return jsonb_build_object(
-    'success', true,
-    'registration_id', v_registration_id,
-    'hash_payload', v_hash_payload,
-    'status', v_status,
-    'reservation_expires_at', v_expires_at
-  );
-end;
-$$;
-
--- Atomic payment confirmation RPC
-create or replace function public.confirm_captured_payment(
-  p_razorpay_payment_id text,
-  p_razorpay_order_id text,
-  p_amount int,
-  p_payer_email text,
-  p_gateway_payload jsonb
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_order record;
-begin
-  -- 1. Find matching payment order
-  select * into v_order
-  from public.payment_orders
-  where razorpay_order_id = p_razorpay_order_id
-  for update;
-
-  if not found then
-    return jsonb_build_object('success', false, 'error', 'Payment order not found');
-  end if;
-
-  -- Amount verification
-  if v_order.amount != p_amount then
-    return jsonb_build_object('success', false, 'error', 'Amount mismatch');
-  end if;
-
-  -- 2. Idempotent insert into payments
-  insert into public.payments (
-    event_id,
-    registration_id,
-    user_id,
-    razorpay_order_id,
-    razorpay_payment_id,
-    amount,
-    payer_email,
-    status,
-    gateway_payload,
-    verified_at
-  ) values (
-    v_order.event_id,
-    v_order.registration_id,
-    v_order.user_id,
-    p_razorpay_order_id,
-    p_razorpay_payment_id,
-    p_amount,
-    p_payer_email,
-    'captured',
-    p_gateway_payload,
-    now()
-  ) on conflict (razorpay_payment_id) do nothing;
-
-  -- 3. Update payment order
-  update public.payment_orders
-  set status = 'paid', updated_at = now()
-  where id = v_order.id;
-
-  -- 4. Confirm registration
-  update public.registrations
-  set status = 'confirmed',
-      reservation_expires_at = null,
-      updated_at = now()
-  where id = v_order.registration_id;
-
-  return jsonb_build_object(
-    'success', true,
-    'registration_id', v_order.registration_id,
-    'status', 'confirmed'
-  );
-end;
-$$;
-
--- Cron helper: Expire abandoned payment holds
-create or replace function public.expire_payment_reservations()
-returns int
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_count int;
-begin
-  with expired as (
-    update public.registrations
-    set status = 'cancelled', updated_at = now()
-    where status = 'pending_payment'
-      and reservation_expires_at is not null
-      and reservation_expires_at < now()
-    returning id
+    case when v_status = 'pending_payment' then now() + interval '15 minutes' else null end
   )
-  select count(*) into v_count from expired;
+  returning id into registration_id;
+
+  registration_status := v_status;
+  payment_required := v_status = 'pending_payment';
+  return next;
+end;
+$$;
+
+revoke all on function public.register_for_event(uuid, uuid, jsonb, jsonb, uuid) from public;
+grant execute on function public.register_for_event(uuid, uuid, jsonb, jsonb, uuid) to authenticated;
+
+create or replace function public.confirm_captured_payment(
+  p_razorpay_order_id text,
+  p_razorpay_payment_id text,
+  p_amount integer
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.payment_orders%rowtype;
+begin
+  select * into v_order
+    from public.payment_orders
+   where razorpay_order_id = p_razorpay_order_id
+   for update;
+  if not found then raise exception 'payment order not found'; end if;
+  if v_order.amount <> p_amount or v_order.currency <> 'INR' then
+    raise exception 'payment amount mismatch';
+  end if;
+  if v_order.status = 'paid' then return; end if;
+  if v_order.status not in ('created', 'creating') then
+    raise exception 'payment order is not payable';
+  end if;
+
+  insert into public.payments (
+    event_id, registration_id, user_id, razorpay_order_id, razorpay_payment_id,
+    amount, charge_type, payer_email, status, verified_at
+  )
+  select
+    v_order.event_id, v_order.registration_id, v_order.user_id,
+    p_razorpay_order_id, p_razorpay_payment_id, v_order.amount,
+    'registration', u.email, 'paid', now()
+  from auth.users u
+  where u.id = v_order.user_id
+  on conflict (razorpay_payment_id) do nothing;
 
   update public.payment_orders
-  set status = 'cancelled', updated_at = now()
-  where status in ('creating', 'created')
-    and expires_at < now();
+     set status = 'paid', updated_at = now()
+   where id = v_order.id;
+
+  update public.registrations
+     set status = 'confirmed', reservation_expires_at = null
+   where id = v_order.registration_id and status = 'pending_payment';
+end;
+$$;
+
+revoke all on function public.confirm_captured_payment(text, text, integer) from public;
+grant execute on function public.confirm_captured_payment(text, text, integer) to service_role;
+
+create or replace function public.expire_payment_reservations() returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_count integer;
+begin
+  update public.registrations
+     set status = 'cancelled'
+   where status = 'pending_payment'
+     and reservation_expires_at <= now();
+  get diagnostics v_count = row_count;
+
+  update public.payment_orders
+     set status = 'cancelled', updated_at = now()
+   where status in ('creating', 'created')
+     and expires_at <= now();
 
   return v_count;
 end;
 $$;
 
--- ==============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ==============================================================================
+revoke all on function public.expire_payment_reservations() from public;
+grant execute on function public.expire_payment_reservations() to service_role;
 
+-- -----------------------------------------------------------------------------
+-- 10. Row Level Security
+-- -----------------------------------------------------------------------------
 alter table public.member_profiles enable row level security;
 alter table public.events enable row level security;
 alter table public.registrations enable row level security;
@@ -457,61 +418,192 @@ alter table public.password_reset_requests enable row level security;
 alter table public.payments enable row level security;
 alter table public.payment_orders enable row level security;
 
--- 1. member_profiles
-create policy "member_profiles_owner_read" on public.member_profiles
-  for select using (auth.uid() = id or public.current_user_role() in ('admin', 'core_member'));
+-- Payment tables: service-role only (no anon/authenticated grants)
+revoke all on public.payment_orders from anon, authenticated;
+revoke all on public.payments from anon, authenticated;
 
-create policy "member_profiles_owner_update" on public.member_profiles
-  for update using (auth.uid() = id or public.current_user_role() = 'admin');
+-- member_profiles
+drop policy if exists "Profiles are viewable by owner" on public.member_profiles;
+create policy "Profiles are viewable by owner"
+  on public.member_profiles for select
+  using (auth.uid() = id);
 
--- 2. events
-create policy "events_public_read" on public.events
-  for select using (is_published = true or public.current_user_role() in ('admin', 'core_member'));
+drop policy if exists "Profiles are updatable by owner" on public.member_profiles;
+create policy "Profiles are updatable by owner"
+  on public.member_profiles for update
+  using (auth.uid() = id);
 
-create policy "events_staff_write" on public.events
-  for all using (public.current_user_role() in ('admin', 'core_member'));
+-- Avoid recursive RLS on member_profiles by using a security-definer helper
+create or replace function public.current_user_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select role from public.member_profiles where id = auth.uid();
+$$;
 
--- 3. registrations
-create policy "registrations_read" on public.registrations
-  for select using (
-    auth.uid() = user_id or
-    public.current_user_role() in ('admin', 'core_member')
+revoke all on function public.current_user_role() from public;
+grant execute on function public.current_user_role() to authenticated;
+
+drop policy if exists "Admins can view all profiles" on public.member_profiles;
+create policy "Admins can view all profiles"
+  on public.member_profiles for select
+  using (public.current_user_role() = 'admin');
+
+drop policy if exists "Admins can update all profiles" on public.member_profiles;
+create policy "Admins can update all profiles"
+  on public.member_profiles for update
+  using (public.current_user_role() = 'admin');
+
+-- events: public read of published; admins manage
+drop policy if exists "Public can read published events" on public.events;
+create policy "Public can read published events"
+  on public.events for select
+  using (is_published = true);
+
+drop policy if exists "Authenticated staff can manage events" on public.events;
+create policy "Authenticated staff can manage events"
+  on public.events for all
+  using (public.current_user_role() = 'admin')
+  with check (public.current_user_role() = 'admin');
+
+-- registrations: owners + staff; public inserts go through service-role server actions
+drop policy if exists "Owners can read own registrations" on public.registrations;
+create policy "Owners can read own registrations"
+  on public.registrations for select
+  using (
+    auth.uid() = user_id
+    or public.current_user_role() = 'admin'
   );
 
-create policy "registrations_staff_update" on public.registrations
-  for update using (public.current_user_role() in ('admin', 'core_member'));
+drop policy if exists "Staff can update registrations" on public.registrations;
+create policy "Staff can update registrations"
+  on public.registrations for update
+  using (public.current_user_role() = 'admin');
 
--- 4. teams
-create policy "teams_public_read" on public.teams
-  for select using (true);
+-- teams: public read (app filters looking_for_members); staff manage
+drop policy if exists "Public can read teams" on public.teams;
+create policy "Public can read teams"
+  on public.teams for select
+  using (true);
 
-create policy "teams_staff_write" on public.teams
-  for all using (public.current_user_role() in ('admin', 'core_member'));
+drop policy if exists "Staff can manage teams" on public.teams;
+create policy "Staff can manage teams"
+  on public.teams for all
+  using (public.current_user_role() = 'admin')
+  with check (public.current_user_role() = 'admin');
 
--- 5. team_members
-create policy "team_members_public_read" on public.team_members
-  for select using (true);
+-- team_members + gallery: public read
+drop policy if exists "Public can read team members" on public.team_members;
+create policy "Public can read team members"
+  on public.team_members for select
+  using (true);
 
-create policy "team_members_staff_write" on public.team_members
-  for all using (public.current_user_role() in ('admin', 'core_member'));
+drop policy if exists "Staff can manage team members" on public.team_members;
+create policy "Staff can manage team members"
+  on public.team_members for all
+  using (public.current_user_role() = 'admin')
+  with check (public.current_user_role() = 'admin');
 
--- 6. gallery_items
-create policy "gallery_items_public_read" on public.gallery_items
-  for select using (true);
+drop policy if exists "Public can read gallery items" on public.gallery_items;
+create policy "Public can read gallery items"
+  on public.gallery_items for select
+  using (true);
 
-create policy "gallery_items_staff_write" on public.gallery_items
-  for all using (public.current_user_role() in ('admin', 'core_member'));
+drop policy if exists "Staff can manage gallery items" on public.gallery_items;
+create policy "Staff can manage gallery items"
+  on public.gallery_items for all
+  using (public.current_user_role() = 'admin')
+  with check (public.current_user_role() = 'admin');
 
--- 7. password_reset_requests
-create policy "password_reset_requests_admin_read" on public.password_reset_requests
-  for select using (public.current_user_role() = 'admin');
+-- password reset requests: admins only (inserts via service role)
+drop policy if exists "Admins can read password reset requests" on public.password_reset_requests;
+create policy "Admins can read password reset requests"
+  on public.password_reset_requests for select
+  using (public.current_user_role() = 'admin');
 
-create policy "password_reset_requests_admin_update" on public.password_reset_requests
-  for update using (public.current_user_role() = 'admin');
+drop policy if exists "Admins can update password reset requests" on public.password_reset_requests;
+create policy "Admins can update password reset requests"
+  on public.password_reset_requests for update
+  using (public.current_user_role() = 'admin');
 
--- 8. payments & payment_orders: Revoke all from anon & authenticated
-revoke all on public.payments from anon, authenticated;
-revoke all on public.payment_orders from anon, authenticated;
+-- -----------------------------------------------------------------------------
+-- 11. Realtime (QR scanner + matchmaking + admin registrations table)
+-- -----------------------------------------------------------------------------
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.registrations;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.teams;
+  exception when duplicate_object then null;
+  end;
+end $$;
 
+-- -----------------------------------------------------------------------------
+-- 12. Storage buckets
+-- -----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values
+  ('images', 'images', true),
+  ('avatars', 'avatars', true),
+  ('webpage', 'webpage', true)
+on conflict (id) do nothing;
 
+-- Public read
+drop policy if exists "Public read images" on storage.objects;
+create policy "Public read images"
+  on storage.objects for select
+  using (bucket_id in ('images', 'avatars', 'webpage'));
 
+-- Authenticated staff can upload/update/delete images + webpage
+drop policy if exists "Staff write images" on storage.objects;
+create policy "Staff write images"
+  on storage.objects for all
+  using (
+    bucket_id in ('images', 'webpage')
+    and exists (
+      select 1 from public.member_profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  )
+  with check (
+    bucket_id in ('images', 'webpage')
+    and exists (
+      select 1 from public.member_profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  );
+
+-- Users manage their own avatars (path starts with their user id)
+drop policy if exists "Users manage own avatars" on storage.objects;
+create policy "Users manage own avatars"
+  on storage.objects for all
+  using (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  )
+  with check (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- -----------------------------------------------------------------------------
+-- 13. Bootstrap first admin (OPTIONAL — edit email then uncomment)
+-- -----------------------------------------------------------------------------
+-- After you create a user in Authentication → Users, run:
+--
+-- update public.member_profiles
+--    set role = 'admin', is_onboarded = true
+--  where email = 'you@srmap.edu.in';
+
+-- =============================================================================
+-- Done.
+-- Tables: member_profiles, events, registrations, teams, team_members,
+--         gallery_items, password_reset_requests, payments, payment_orders
+-- Storage: images, avatars, webpage
+-- =============================================================================

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { auditLog, isUuid, noStoreJson, readJsonObject, requireAdmin } from '@/lib/api-security';
+import { guardAdminRemoval } from '@/lib/single-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,10 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getAdminClient();
+
+    // One administrator only: the sole administrator account cannot be deleted.
+    const guard = await guardAdminRemoval(supabase, targetUserId);
+    if (!guard.ok) return noStoreJson({ error: guard.message }, guard.status);
 
     const { error } = await supabase.auth.admin.deleteUser(targetUserId);
     if (error) {

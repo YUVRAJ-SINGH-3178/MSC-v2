@@ -28,7 +28,7 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single();
 
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'core_member')) {
+  if (!profile || profile.role !== 'admin') {
     redirect('/login?error=unauthorized');
   }
 

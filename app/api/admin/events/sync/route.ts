@@ -35,7 +35,7 @@ interface SyncError {
  * this one is a client-side change.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin({ allowCoreMember: true });
+  const auth = await requireAdmin();
   if ('error' in auth) return auth.error;
 
   try {

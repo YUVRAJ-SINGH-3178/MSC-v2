@@ -9,10 +9,11 @@ import {
   requireAdmin,
   securityLog,
 } from '@/lib/api-security';
+import { guardRoleChange } from '@/lib/single-admin';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_ROLES = ['admin', 'core_member', 'user'] as const;
+const VALID_ROLES = ['admin', 'member'] as const;
 
 /**
  * Provisions a member account.
@@ -54,9 +55,13 @@ export async function POST(req: NextRequest) {
 
     const assignedRole = VALID_ROLES.includes(role as (typeof VALID_ROLES)[number])
       ? role!
-      : 'core_member';
+      : 'member';
 
     const supabase = getAdminClient();
+
+    // One administrator only: refuse to provision a second admin account.
+    const guard = await guardRoleChange(supabase, undefined, assignedRole);
+    if (!guard.ok) return noStoreJson({ error: guard.message }, guard.status);
 
     const { data, error } = await supabase.auth.admin.createUser({
       email,

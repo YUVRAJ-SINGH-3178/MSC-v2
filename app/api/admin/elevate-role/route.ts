@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { auditLog, isUuid, noStoreJson, readJsonObject, requireAdmin } from '@/lib/api-security';
+import { guardRoleChange } from '@/lib/single-admin';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_ROLES = ['admin', 'core_member', 'user'] as const;
+const VALID_ROLES = ['admin', 'member'] as const;
 
 /**
  * Changes a member's role.
@@ -40,6 +41,12 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getAdminClient();
+
+    // One administrator only: refuse a second admin, and refuse demoting the
+    // last one (lib/single-admin.ts mirrors the database constraint).
+    const guard = await guardRoleChange(supabase, targetUserId, newRole);
+    if (!guard.ok) return noStoreJson({ error: guard.message }, guard.status);
+
     const { error } = await supabase
       .from('member_profiles')
       .update({ role: newRole, updated_at: new Date().toISOString() })

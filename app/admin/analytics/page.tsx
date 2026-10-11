@@ -65,7 +65,10 @@ export default function AdminAnalyticsPage() {
       const checkinRate = totalRegistrations > 0 ? Number(((checkedInCount / totalRegistrations) * 100).toFixed(1)) : 0;
 
       setKpiMetrics({
-        totalCoreUsers: usersData.filter((u) => u.role === 'admin' || u.role === 'core_member').length,
+        // Label reads "Core Community Users", i.e. every provisioned account.
+        // There is no staff tier any more: `core_member` was removed along with
+        // the third role, so a "core users" count would just be the single admin.
+        totalCoreUsers: usersData.length,
         totalEvents: eventsData.length,
         totalRegistrations,
         totalHeadcount: totalRegistrations,

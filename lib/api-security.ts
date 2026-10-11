@@ -62,12 +62,11 @@ export async function requireUser() {
   return { supabase, user: data.user };
 }
 
-export type AdminRole = 'admin' | 'core_member';
-
-export interface RequireAdminOptions {
-  /** Allow `core_member` through in addition to `admin`. Defaults to false. */
-  allowCoreMember?: boolean;
-}
+/**
+ * There are exactly two roles: `admin` (admin portal) and `member` (member
+ * portal). This guard is admin-only.
+ */
+export type AdminRole = 'admin';
 
 /**
  * Guard for privileged routes.
@@ -76,9 +75,7 @@ export interface RequireAdminOptions {
  * permission MUST be verified here first — the middleware only gates the `/admin`
  * page prefix and never matches `/api/admin/*`.
  */
-export async function requireAdmin(options: RequireAdminOptions = {}) {
-  const { allowCoreMember = false } = options;
-
+export async function requireAdmin() {
   const auth = await requireUser();
   if ('error' in auth) return auth;
 
@@ -98,16 +95,12 @@ export async function requireAdmin(options: RequireAdminOptions = {}) {
     return { error: noStoreJson({ error: 'Profile not found' }, 403) };
   }
 
-  const permitted: AdminRole[] = allowCoreMember
-    ? ['admin', 'core_member']
-    : ['admin'];
-
-  if (!permitted.includes(profile.role as AdminRole)) {
+  if (profile.role !== 'admin') {
     securityLog('auth.denied', 'Role lacks permission for a privileged route', {
       actor: user.id,
       status: 403,
       role: profile.role,
-      required: permitted,
+      required: ['admin'],
     });
     return {
       error: noStoreJson({ error: 'Forbidden: admin access required' }, 403),

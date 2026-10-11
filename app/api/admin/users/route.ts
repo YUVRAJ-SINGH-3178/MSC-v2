@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { checkRateLimit } from '@/lib/ratelimit';
+import { guardAdminRemoval, guardRoleChange } from '@/lib/single-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Role creation/promotion to admin or core_member strictly requires admin role
+  // Provisioning accounts and assigning roles strictly requires the admin role
   if (auth.role !== 'admin') {
     return NextResponse.json(
       { error: 'Forbidden: Only administrators can provision accounts or assign member roles' },
@@ -63,8 +64,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const assignedRole = role === 'admin' ? 'admin' : 'core_member';
+    const assignedRole = role === 'admin' ? 'admin' : 'member';
     const supabase = getAdminClient();
+
+    // One administrator only: refuse to provision a second admin account.
+    const guard = await guardRoleChange(supabase, undefined, assignedRole);
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status });
+    }
 
     // Provision user via Supabase Auth Admin API
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
@@ -139,6 +146,16 @@ export async function PUT(req: Request) {
         );
       }
 
+      // Two roles only: admin | member (stale clients may still send core_member)
+      if (!['admin', 'member'].includes(role)) {
+        return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
+      }
+
+      const guard = await guardRoleChange(supabase, user_id, role);
+      if (!guard.ok) {
+        return NextResponse.json({ error: guard.message }, { status: guard.status });
+      }
+
       const { error } = await supabase
         .from('member_profiles')
         .update({ role, updated_at: new Date().toISOString() })
@@ -182,6 +199,13 @@ export async function DELETE(req: Request) {
     }
 
     const supabase = getAdminClient();
+
+    // One administrator only: the sole administrator account cannot be deleted.
+    const guard = await guardAdminRemoval(supabase, userId);
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status });
+    }
+
     const { error: authErr } = await supabase.auth.admin.deleteUser(userId);
     if (authErr) {
       console.warn('Auth user delete warning:', authErr.message);

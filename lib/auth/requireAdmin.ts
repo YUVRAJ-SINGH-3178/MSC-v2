@@ -6,12 +6,13 @@ import { getAdminClient } from '@/lib/supabase/admin';
 
 export type RequireAdminResult =
   | { authorized: false; response: NextResponse; user?: never; role?: never }
-  | { authorized: true; response?: never; user: User; role: 'admin' | 'core_member' | string };
+  | { authorized: true; response?: never; user: User; role: string };
 
 /**
  * Server-side helper that reads the Supabase session from cookies via @supabase/ssr,
  * verifies the caller against Supabase Auth, fetches the caller's role from member_profiles,
- * and ensures they have 'admin' or 'core_member' privileges.
+ * and ensures they are an `admin` (the only role that may use the admin portal —
+ * the other role is `member`).
  */
 export async function requireAdmin(): Promise<RequireAdminResult> {
   try {
@@ -86,11 +87,11 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
       }
     }
 
-    if (!role || (role !== 'admin' && role !== 'core_member')) {
+    if (!role || role !== 'admin') {
       return {
         authorized: false,
         response: NextResponse.json(
-          { error: 'Forbidden: Admin or core member privileges required' },
+          { error: 'Forbidden: Admin privileges required' },
           { status: 403 }
         ),
       };

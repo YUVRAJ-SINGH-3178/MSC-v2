@@ -20,7 +20,7 @@ interface UserProfile {
   id: string;
   email: string;
   full_name?: string;
-  role: 'admin' | 'core_member' | 'user';
+  role: 'admin' | 'member';
   department?: string;
   year?: string;
   created_at: string;
@@ -41,7 +41,7 @@ export default function AdminUsersPage() {
     email: '',
     password: '',
     full_name: '',
-    role: 'core_member',
+    role: 'member',
     department: 'Computer Science & Engineering',
     year: '3rd Year',
   });
@@ -78,7 +78,7 @@ export default function AdminUsersPage() {
           email: '',
           password: '',
           full_name: '',
-          role: 'core_member',
+          role: 'member',
           department: 'Computer Science & Engineering',
           year: '3rd Year',
         });
@@ -103,6 +103,9 @@ export default function AdminUsersPage() {
           prev.map((u) => (u.id === userId ? { ...u, role: newRole as any } : u))
         );
         setActionMessage('User permissions updated successfully.');
+      } else {
+        const data = await res.json().catch(() => ({} as any));
+        alert(data.error || 'Failed to update role');
       }
     } catch (err: any) {
       alert(err.message);
@@ -142,11 +145,20 @@ export default function AdminUsersPage() {
       if (res.ok) {
         setUsers((prev) => prev.filter((u) => u.id !== userId));
         setActionMessage(`Member account ${email} removed.`);
+      } else {
+        const data = await res.json().catch(() => ({} as any));
+        alert(data.error || 'Failed to delete account');
       }
     } catch (err: any) {
       alert(err.message);
     }
   };
+
+  // One administrator only: mirror the API/database rule in the pickers so the
+  // option that would be rejected is not offered in the first place.
+  const adminId = users.find((u) => u.role === 'admin')?.id;
+  const isSoleAdmin = (u: UserProfile) => u.role === 'admin' && u.id === adminId;
+  const canTakeAdmin = (u: UserProfile) => !adminId || u.id === adminId;
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -165,7 +177,7 @@ export default function AdminUsersPage() {
             User Access Provisioning
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-            Manage core member accounts, elevate administrative roles, and provision access for Chapter &apos;26.
+            Manage member accounts, elevate the administrator, and provision access for Chapter &apos;26.
           </p>
         </div>
 
@@ -174,7 +186,7 @@ export default function AdminUsersPage() {
           className="fluent-btn fluent-btn-primary"
           style={{ fontSize: '13px' }}
         >
-          <UserPlus size={16} /> Provision Core Member
+          <UserPlus size={16} /> Provision Member
         </button>
       </div>
 
@@ -232,7 +244,7 @@ export default function AdminUsersPage() {
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Role:</span>
-          {['all', 'admin', 'core_member'].map((r) => (
+          {['all', 'admin', 'member'].map((r) => (
             <button
               key={r}
               onClick={() => setRoleFilter(r)}
@@ -278,7 +290,7 @@ export default function AdminUsersPage() {
             {filteredUsers.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No accounts found. Click &quot;Provision Core Member&quot; to create a new user.
+                  No accounts found. Click &quot;Provision Member&quot; to create a new user.
                 </td>
               </tr>
             ) : (
@@ -309,9 +321,12 @@ export default function AdminUsersPage() {
                         color: u.role === 'admin' ? 'var(--accent-strong)' : 'var(--brand)',
                       }}
                     >
-                      <option value="admin">Admin</option>
-                      <option value="core_member">Core Member</option>
-                      <option value="user">Regular User</option>
+                      <option value="admin" disabled={!canTakeAdmin(u)} title="Only one administrator is allowed">
+                        Admin
+                      </option>
+                      <option value="member" disabled={isSoleAdmin(u)}>
+                        Member
+                      </option>
                     </select>
                   </td>
 
@@ -335,9 +350,15 @@ export default function AdminUsersPage() {
 
                       <button
                         onClick={() => handleDeleteUser(u.id, u.email)}
+                        disabled={isSoleAdmin(u)}
                         className="fluent-btn fluent-btn-secondary"
-                        style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }}
-                        title="Delete member account"
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          color: 'var(--danger)',
+                          opacity: isSoleAdmin(u) ? 0.5 : 1,
+                        }}
+                        title={isSoleAdmin(u) ? 'The administrator account cannot be deleted' : 'Delete member account'}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -380,7 +401,7 @@ export default function AdminUsersPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <UserPlus size={20} color="var(--brand)" />
                 <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
-                  Provision Core Member Account
+                  Provision Member Account
                 </h3>
               </div>
               <button
@@ -449,8 +470,10 @@ export default function AdminUsersPage() {
                     className="fluent-input"
                     style={{ width: '100%' }}
                   >
-                    <option value="core_member">Core Member</option>
-                    <option value="admin">Administrator</option>
+                    <option value="member">Member</option>
+                    <option value="admin" disabled={!!adminId} title="Only one administrator is allowed">
+                      Administrator
+                    </option>
                   </select>
                 </div>
 

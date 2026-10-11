@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { checkRateLimit } from '@/lib/ratelimit';
+import { guardRoleChange } from '@/lib/single-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Only admin can change member roles (core_member cannot change roles)
+  // Only administrators can change member roles (members cannot change roles)
   if (auth.role !== 'admin') {
     return NextResponse.json(
       { error: 'Forbidden: Only administrators can modify member roles' },
@@ -56,11 +57,19 @@ export async function POST(req: Request) {
   try {
     const { user_id, role } = await req.json();
 
-    if (!user_id || !['admin', 'core_member', 'user'].includes(role)) {
+    if (!user_id || !['admin', 'member'].includes(role)) {
       return NextResponse.json({ error: 'Invalid user ID or role specified' }, { status: 400 });
     }
 
     const supabase = getAdminClient();
+
+    // One administrator only: refuse a second admin, and refuse removing the
+    // last one (lib/single-admin.ts mirrors the database constraint).
+    const guard = await guardRoleChange(supabase, user_id, role);
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.message }, { status: guard.status });
+    }
+
     const { error } = await supabase
       .from('member_profiles')
       .update({ role, updated_at: new Date().toISOString() })

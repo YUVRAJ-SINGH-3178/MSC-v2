@@ -7,7 +7,7 @@ interface MemberRoleRecord {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'core_member' | 'user';
+  role: 'admin' | 'member';
   is_onboarded: boolean;
 }
 
@@ -35,7 +35,7 @@ export default function AdminRolesPage() {
     fetchMembers();
   }, []);
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'core_member' | 'user') => {
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'member') => {
     try {
       const res = await fetch('/api/admin/roles', {
         method: 'POST',
@@ -57,6 +57,12 @@ export default function AdminRolesPage() {
     }
   };
 
+  // One administrator only: mirror the API/database rule in the picker so the
+  // option that would be rejected is not offered in the first place.
+  const adminId = members.find((m) => m.role === 'admin')?.id;
+  const isSoleAdmin = (m: MemberRoleRecord) => m.role === 'admin' && m.id === adminId;
+  const canTakeAdmin = (m: MemberRoleRecord) => !adminId || m.id === adminId;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -65,7 +71,8 @@ export default function AdminRolesPage() {
             Member Role Management
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Assign operational privileges across Administrator, Core Member (Organizer), and General Member.
+            Assign one of the two roles — Administrator (admin portal) or Member (member portal).
+            Only one Administrator account can exist at a time.
           </p>
         </div>
         <button
@@ -139,15 +146,9 @@ export default function AdminRolesPage() {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <span
-                      className={`fluent-badge ${
-                        m.role === 'admin'
-                          ? 'badge-danger'
-                          : m.role === 'core_member'
-                          ? 'badge-info'
-                          : 'badge-success'
-                      }`}
+                      className={`fluent-badge ${m.role === 'admin' ? 'badge-danger' : 'badge-success'}`}
                     >
-                      {m.role ? m.role.toUpperCase() : 'USER'}
+                      {m.role === 'admin' ? 'ADMIN' : 'MEMBER'}
                     </span>
                   </td>
                   <td style={{ padding: '14px 16px' }}>
@@ -155,14 +156,17 @@ export default function AdminRolesPage() {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <select
-                      value={m.role || 'user'}
+                      value={m.role || 'member'}
                       onChange={(e) => handleRoleChange(m.id, e.target.value as any)}
                       className="fluent-input"
                       style={{ width: '160px', fontSize: '12px' }}
                     >
-                      <option value="user">User</option>
-                      <option value="core_member">Core Member (Staff)</option>
-                      <option value="admin">Administrator</option>
+                      <option value="member" disabled={isSoleAdmin(m)}>
+                        Member
+                      </option>
+                      <option value="admin" disabled={!canTakeAdmin(m)} title="Only one administrator is allowed">
+                        Administrator
+                      </option>
                     </select>
                   </td>
                 </tr>
