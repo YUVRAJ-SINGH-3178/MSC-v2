@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { checkRateLimit } from '@/lib/ratelimit';
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const supabase = getAdminClient();
 
+    const hasCert = body.form_requirements?.provide_certificates ?? (body.certificate_html ? true : false);
+
     const newEv = {
       title: body.title || 'Untitled Event',
       slug: body.slug || (body.title || 'new-event').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -70,8 +73,9 @@ export async function POST(req: Request) {
         registration_fee: body.form_requirements?.registration_fee || 0,
         allow_teams: body.form_requirements?.allow_teams ?? false,
         max_team_size: body.form_requirements?.max_team_size || 4,
-        provide_certificates: true,
+        provide_certificates: hasCert,
       },
+      certificate_html: body.certificate_html || null,
       gallery_urls: body.gallery_urls || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -79,6 +83,17 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabase.from('events').insert(newEv).select().single();
     if (error) throw error;
+
+    try {
+      revalidatePath('/', 'page');
+      revalidatePath('/events', 'page');
+      revalidatePath('/events/[slug]', 'page');
+      if (data?.slug) revalidatePath(`/events/${data.slug}`, 'page');
+      if (data?.slug === 'synora-26') revalidatePath('/events/synora', 'page');
+      revalidatePath('/admin/events', 'page');
+    } catch (e) {
+      console.warn('Revalidate path warning:', e);
+    }
 
     return NextResponse.json({ success: true, event: data });
   } catch (err: any) {
@@ -120,6 +135,17 @@ export async function PUT(req: Request) {
 
     if (error) throw error;
 
+    try {
+      revalidatePath('/', 'page');
+      revalidatePath('/events', 'page');
+      revalidatePath('/events/[slug]', 'page');
+      if (data?.slug) revalidatePath(`/events/${data.slug}`, 'page');
+      if (data?.slug === 'synora-26') revalidatePath('/events/synora', 'page');
+      revalidatePath('/admin/events', 'page');
+    } catch (e) {
+      console.warn('Revalidate path warning:', e);
+    }
+
     return NextResponse.json({ success: true, event: data });
   } catch (err: any) {
     console.error('Error updating admin event:', err);
@@ -155,6 +181,13 @@ export async function DELETE(req: Request) {
     // 2. Delete event
     const { error } = await supabase.from('events').delete().eq('id', id);
     if (error) throw error;
+
+    try {
+      revalidatePath('/', 'page');
+      revalidatePath('/events', 'page');
+    } catch (e) {
+      console.warn('Revalidate path warning:', e);
+    }
 
     return NextResponse.json({ success: true, id });
   } catch (err: any) {

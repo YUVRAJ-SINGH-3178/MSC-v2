@@ -37,21 +37,22 @@ export async function GET(req: Request) {
     const { data: rawRows, error } = await query;
     if (error) throw error;
 
-    const data = (rawRows || []).map((r: any) => ({
-      name: r.form_data?.full_name || r.form_data?.name || r.lead_email.split('@')[0],
-      email: r.lead_email,
-      regNum: r.form_data?.registration_number || r.form_data?.reg_num || 'N/A',
-      phone: r.form_data?.phone || 'N/A',
-      college: r.form_data?.college || 'SRM University AP',
-      event: r.events?.title || 'SYNORA',
-      status: (r.status || 'confirmed').toUpperCase(),
-      checkedIn: r.checked_in ? 'YES' : 'NO',
-      team: r.team_data?.team_name || 'Individual',
-      registeredAt: new Date(r.created_at).toLocaleString(),
+    const csvData = (rawRows || []).map((r: any) => ({
+      'Ticket ID': r.form_data?.ticket_id || r.hash_payload || r.id,
+      Role: r.form_data?.role || r.team_data?.role || (r.team_data?.team_name ? 'Member' : 'Solo'),
+      Name: r.form_data?.full_name || r.form_data?.name || r.lead_email.split('@')[0],
+      Email: r.lead_email,
+      'Reg Num': r.form_data?.registration_number || r.form_data?.reg_num || 'N/A',
+      Mobile: r.form_data?.phone || r.phone || 'N/A',
+      Branch: r.form_data?.branch || 'N/A',
+      'Team Name': r.team_data?.team_name || 'Individual',
+      'Team Size': r.team_data?.team_size ? String(r.team_data.team_size) : (r.team_data?.team_name ? 'Team' : '1'),
+      Status: (r.status || 'confirmed').toUpperCase(),
+      'Registration Date': r.created_at,
     }));
 
     if (format === 'csv') {
-      const csv = Papa.unparse(data);
+      const csv = Papa.unparse(csvData);
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
@@ -67,16 +68,17 @@ export async function GET(req: Request) {
     const sheet = workbook.addWorksheet('Registrations');
 
     sheet.columns = [
-      { header: 'Full Name', key: 'name', width: 22 },
-      { header: 'Official Email', key: 'email', width: 26 },
-      { header: 'Registration Number', key: 'regNum', width: 20 },
-      { header: 'Phone Number', key: 'phone', width: 16 },
-      { header: 'College / University', key: 'college', width: 24 },
-      { header: 'Event Title', key: 'event', width: 32 },
+      { header: 'Ticket ID', key: 'ticket_id', width: 16 },
+      { header: 'Role', key: 'role', width: 12 },
+      { header: 'Name', key: 'name', width: 22 },
+      { header: 'Email', key: 'email', width: 26 },
+      { header: 'Reg Num', key: 'reg_num', width: 18 },
+      { header: 'Mobile', key: 'mobile', width: 16 },
+      { header: 'Branch', key: 'branch', width: 14 },
+      { header: 'Team Name', key: 'team_name', width: 20 },
+      { header: 'Team Size', key: 'team_size', width: 12 },
       { header: 'Status', key: 'status', width: 14 },
-      { header: 'Checked In', key: 'checkedIn', width: 12 },
-      { header: 'Team Name', key: 'team', width: 20 },
-      { header: 'Registered At', key: 'registeredAt', width: 22 },
+      { header: 'Registration Date', key: 'reg_date', width: 22 },
     ];
 
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -86,8 +88,20 @@ export async function GET(req: Request) {
       fgColor: { argb: 'FF0067B8' },
     };
 
-    data.forEach((row: Record<string, any>) => {
-      sheet.addRow(row);
+    (rawRows || []).forEach((r: any) => {
+      sheet.addRow({
+        ticket_id: r.form_data?.ticket_id || r.hash_payload || r.id,
+        role: r.form_data?.role || r.team_data?.role || (r.team_data?.team_name ? 'Member' : 'Solo'),
+        name: r.form_data?.full_name || r.form_data?.name || r.lead_email.split('@')[0],
+        email: r.lead_email,
+        reg_num: r.form_data?.registration_number || r.form_data?.reg_num || 'N/A',
+        mobile: r.form_data?.phone || r.phone || 'N/A',
+        branch: r.form_data?.branch || 'N/A',
+        team_name: r.team_data?.team_name || 'Individual',
+        team_size: r.team_data?.team_size ? String(r.team_data.team_size) : (r.team_data?.team_name ? 'Team' : '1'),
+        status: (r.status || 'confirmed').toUpperCase(),
+        reg_date: r.created_at,
+      });
     });
 
     const buffer = await workbook.xlsx.writeBuffer();

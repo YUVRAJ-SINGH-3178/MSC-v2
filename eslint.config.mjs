@@ -28,6 +28,7 @@ const eslintConfig = [
       "@typescript-eslint/triple-slash-reference": "off",
       "@typescript-eslint/no-this-alias": "off",
       "@typescript-eslint/no-empty-object-type": "off",
+      "prefer-const": "warn",
     },
   },
 ];

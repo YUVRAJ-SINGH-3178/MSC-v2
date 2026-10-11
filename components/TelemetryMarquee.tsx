@@ -1,29 +1,29 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Terminal, Cloud, Award, Users, Trophy, GitBranch } from 'lucide-react';
+import { Cloud, Award, Users, Trophy, GitBranch, Cpu, Zap } from 'lucide-react';
 
 export default function TelemetryMarquee({ activeEventTitle }: { activeEventTitle?: string }) {
-  const featuredTitle = activeEventTitle ? activeEventTitle.toUpperCase() : "SYNORA '26";
+  const featuredTitle = activeEventTitle || "SYNORA '26";
   const items = [
-    { text: `01 // ${featuredTitle} // Chapter '26 [FEATURED]`, icon: Trophy },
-    { text: "02 // Azure & Cloud // Distributed Scale", icon: Cloud },
-    { text: "03 // Applied AI // LLMs & Cognitive Services", icon: Terminal },
-    { text: "04 // 50+ Engineers // Active Campus Guild", icon: Users },
-    { text: "05 // Technical Sprints // Hackathon Bounty Pool", icon: Sparkles },
-    { text: "06 // Open Source // Production Tooling", icon: GitBranch },
-    { text: "07 // MLSA Chapter // Microsoft Ambassadors", icon: Award },
+    { text: `${featuredTitle} · Featured event`, icon: Trophy },
+    { text: 'Azure & Cloud Computing', icon: Cloud },
+    { text: 'Applied AI & Cognitive Services', icon: Cpu },
+    { text: '1,200+ Student members', icon: Users },
+    { text: 'Hackathons & technical workshops', icon: Zap },
+    { text: 'Open-source contributions', icon: GitBranch },
+    { text: 'Microsoft Learn Student Ambassadors', icon: Award },
   ];
 
   return (
     <div
       style={{
         overflow: 'hidden',
-        background: '#071524',
-        borderTop: '1px solid rgba(0, 103, 184, 0.3)',
-        borderBottom: '1px solid rgba(0, 103, 184, 0.3)',
-        color: '#ffffff',
-        padding: '12px 0',
+        background: 'var(--bg-soft)',
+        borderTop: '1px solid var(--border)',
+        borderBottom: '1px solid var(--border)',
+        color: 'var(--text-body)',
+        padding: '10px 0',
         whiteSpace: 'nowrap',
         position: 'relative',
       }}
@@ -32,8 +32,8 @@ export default function TelemetryMarquee({ activeEventTitle }: { activeEventTitl
         className="marquee-track"
         style={{
           display: 'inline-flex',
-          gap: '40px',
-          animation: 'marquee 32s linear infinite',
+          gap: '32px',
+          animation: 'marquee 35s linear infinite',
         }}
       >
         {/* Render items twice for seamless infinite scroll */}
@@ -45,15 +45,16 @@ export default function TelemetryMarquee({ activeEventTitle }: { activeEventTitl
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '10px',
-                fontSize: '13px',
-                fontFamily: 'monospace',
-                letterSpacing: '0.02em',
+                gap: '8px',
+                fontSize: '12px',
+                fontFamily: 'var(--font-family)',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
               }}
             >
-              <Icon size={14} color="#00a4ef" />
-              <strong style={{ color: '#ffffff', fontWeight: 600 }}>{item.text}</strong>
-              <span style={{ color: 'rgba(255,255,255,0.25)', marginLeft: '20px' }}>&bull;</span>
+              <Icon size={13} color="var(--brand)" />
+              <span style={{ color: 'var(--text-body)' }}>{item.text}</span>
+              <span style={{ color: 'var(--border)', marginLeft: '16px' }}>&bull;</span>
             </div>
           );
         })}

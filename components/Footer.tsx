@@ -60,7 +60,7 @@ export default function Footer() {
       style={{
         backgroundColor: 'var(--bg-soft)',
         borderTop: '1px solid var(--border)',
-        padding: '48px 0 28px 0',
+        padding: '40px 0 0 0',
         marginTop: 'auto',
       }}
     >
@@ -71,35 +71,36 @@ export default function Footer() {
             justifyContent: 'space-between',
             alignItems: 'flex-start',
             flexWrap: 'wrap',
-            gap: '36px',
-            marginBottom: '36px',
+            gap: '32px',
+            marginBottom: '32px',
           }}
         >
           {/* Identity & Mission */}
           <div style={{ maxWidth: '380px', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
               <img
                 src="https://lkbwunzswqbnoygxtilm.supabase.co/storage/v1/object/public/webpage/MSC%20Logo.png"
                 alt="Microsoft Student Community"
                 style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '28px',
+                  height: '28px',
                   objectFit: 'contain',
                 }}
               />
-              <div>
-                <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
-                  Microsoft Student Community
-                </h4>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>SRM University-AP</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-strong)' }}>
+                  Microsoft
+                </span>
+                <span style={{ width: '1px', height: '14px', backgroundColor: 'var(--border-strong)', opacity: 0.5 }} />
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Student Community</span>
               </div>
             </div>
 
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 18px 0' }}>
-              Empowering student innovators, cloud architects, and builders at SRM University-AP. Powered by Microsoft Learn Student Ambassadors.
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 16px 0' }}>
+              A student-led initiative at SRM University-AP empowering innovators through cloud computing, hackathons, and open-source collaboration.
             </p>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               {socialLinks.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -110,20 +111,28 @@ export default function Footer() {
                     rel="noopener noreferrer"
                     title={s.label}
                     style={{
-                      width: '34px',
-                      height: '34px',
+                      width: '32px',
+                      height: '32px',
                       background: 'var(--surface)',
                       border: '1px solid var(--border)',
                       borderRadius: 'var(--radius-sm)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'var(--text-body)',
+                      color: 'var(--text-muted)',
                       textDecoration: 'none',
-                      transition: 'all 0.15s ease',
+                      transition: 'all var(--duration-fast) var(--easing-decelerate)',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--brand)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--brand)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
                     }}
                   >
-                    <Icon size={16} />
+                    <Icon size={14} />
                   </a>
                 );
               })}
@@ -140,16 +149,16 @@ export default function Footer() {
                 letterSpacing: '0.06em',
                 color: 'var(--text-strong)',
                 display: 'block',
-                marginBottom: '14px',
+                marginBottom: '12px',
               }}
             >
-              Quick Links
+              Quick links
             </span>
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(100px, 1fr))',
-                gap: '10px 24px',
+                gap: '8px 24px',
               }}
             >
               {quickLinks.map((item) => (
@@ -160,7 +169,7 @@ export default function Footer() {
                     color: 'var(--text-muted)',
                     textDecoration: 'none',
                     fontSize: '13px',
-                    transition: 'color 0.15s ease',
+                    transition: 'color var(--duration-fast) var(--easing-decelerate)',
                   }}
                   onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--brand)')}
                   onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
@@ -181,7 +190,7 @@ export default function Footer() {
                 letterSpacing: '0.06em',
                 color: 'var(--text-strong)',
                 display: 'block',
-                marginBottom: '14px',
+                marginBottom: '12px',
               }}
             >
               Contact
@@ -203,25 +212,35 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/* Bottom Bar: Microsoft.com footer pattern */}
         <div
           style={{
             borderTop: '1px solid var(--border)',
-            paddingTop: '20px',
+            padding: '16px 0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
             gap: '12px',
-            fontSize: '12px',
+            fontSize: '11px',
             color: 'var(--text-muted)',
           }}
         >
           <div>
-            &copy; 2026 Microsoft Student Community - SRM University-AP. All rights reserved.
+            &copy; 2026 Microsoft Student Community &middot; SRM University-AP
           </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <span>SRM University-AP</span>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '11px' }}>
+              About
+            </Link>
+            <span style={{ color: 'var(--border-strong)' }}>|</span>
+            <a href="mailto:msc.community@srmap.edu.in" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '11px' }}>
+              Contact us
+            </a>
+            <span style={{ color: 'var(--border-strong)' }}>|</span>
+            <span style={{ fontSize: '11px' }}>
+              Not officially affiliated with Microsoft Corporation
+            </span>
           </div>
         </div>
       </div>

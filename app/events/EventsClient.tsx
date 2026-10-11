@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Calendar, MapPin, Users, Image as ImageIcon, ExternalLink, ArrowRight, Sparkles, Filter } from 'lucide-react';
+import { Calendar, MapPin, Users, ExternalLink, ArrowRight } from 'lucide-react';
 import { EventItem } from '@/lib/data/mock-fallback';
 
 export default function EventsClient({ events }: { events: EventItem[] }) {
@@ -54,7 +54,7 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
               <div style={{ background: '#00a4ef', borderRadius: '1px' }} />
               <div style={{ background: '#ffb900', borderRadius: '1px' }} />
             </div>
-            <span>MICROSOFT TECH COMMUNITY &bull; CAMPUS EVENTS &amp; HACKATHONS</span>
+            <span>MICROSOFT STUDENT COMMUNITY &bull; EVENTS</span>
           </div>
 
           <h1
@@ -67,7 +67,7 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
               marginBottom: '12px',
             }}
           >
-            Events &amp; Innovation Sprints
+            Events &amp; workshops
           </h1>
 
           <p
@@ -85,16 +85,31 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
         {featuredEvent && (() => {
           const startDate = new Date(featuredEvent.date_start);
           const isValidDate = !isNaN(startDate.getTime());
+          const formattedDate = isValidDate
+            ? startDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : 'Date to be announced';
           const monthShort = isValidDate ? startDate.toLocaleDateString('en-US', { month: 'short' }).toUpperCase() : 'UPCOMING';
           const dayNum = isValidDate ? startDate.toLocaleDateString('en-US', { day: '2-digit' }) : '01';
           const isPaid = featuredEvent.form_requirements?.event_pricing === 'paid';
-          const priceLabel = isPaid ? `₹${featuredEvent.form_requirements?.registration_fee || 0}` : 'Free Entry';
-          const isCompleted = featuredEvent.status === 'completed';
+          const priceLabel = isPaid ? `₹${featuredEvent.form_requirements?.registration_fee || 0}` : 'Free entry';
+          const isCompleted =
+            featuredEvent.status === 'completed' ||
+            Boolean(
+              featuredEvent.date_end &&
+                !isNaN(new Date(featuredEvent.date_end).getTime()) &&
+                new Date(featuredEvent.date_end).getTime() < Date.now()
+            );
+          const isRegOpen = !isCompleted && featuredEvent.registration_open;
 
           return (
             <div
               style={{
-                borderRadius: '8px',
+                borderRadius: '4px',
                 border: '1px solid var(--border)',
                 boxShadow: 'var(--shadow-rest)',
                 background: 'var(--surface)',
@@ -131,14 +146,12 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                     top: '16px',
                     left: '16px',
                     background: 'rgba(0, 0, 0, 0.85)',
-                    backdropFilter: 'blur(8px)',
                     color: '#ffffff',
                     padding: '6px 12px',
-                    borderRadius: '4px',
+                    borderRadius: '2px',
                     fontSize: '12px',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     display: 'flex',
                     alignItems: 'center',
@@ -155,14 +168,12 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                     position: 'absolute',
                     bottom: '16px',
                     right: '16px',
-                    background: 'rgba(0, 103, 184, 0.92)',
-                    backdropFilter: 'blur(8px)',
+                    background: 'var(--brand)',
                     color: '#ffffff',
-                    padding: '5px 12px',
-                    borderRadius: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '2px',
                     fontSize: '12px',
                     fontWeight: 600,
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
                   }}
                 >
                   {priceLabel}
@@ -181,16 +192,30 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span
                     style={{
-                      background: isCompleted ? 'var(--bg-soft)' : 'var(--success-bg)',
-                      color: isCompleted ? 'var(--text-muted)' : 'var(--success)',
-                      border: `1px solid ${isCompleted ? 'var(--border)' : 'rgba(14, 124, 65, 0.2)'}`,
-                      padding: '3px 10px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
+                      background: isCompleted
+                        ? 'var(--bg-soft)'
+                        : isRegOpen
+                        ? 'var(--success-bg)'
+                        : 'rgba(245, 158, 11, 0.1)',
+                      color: isCompleted
+                        ? 'var(--text-muted)'
+                        : isRegOpen
+                        ? 'var(--success)'
+                        : '#d97706',
+                      border: `1px solid ${
+                        isCompleted
+                          ? 'var(--border)'
+                          : isRegOpen
+                          ? 'rgba(14, 124, 65, 0.2)'
+                          : 'rgba(245, 158, 11, 0.3)'
+                      }`,
+                      padding: '2px 8px',
+                      borderRadius: '2px',
+                      fontSize: '11px',
                       fontWeight: 600,
                     }}
                   >
-                    {isCompleted ? 'Completed' : 'Registration Open'}
+                    {isCompleted ? 'Completed' : isRegOpen ? 'Registration open' : 'Registration closed'}
                   </span>
                   {featuredEvent.type && (
                     <span
@@ -198,21 +223,21 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                         background: 'var(--brand-soft)',
                         color: 'var(--brand)',
                         border: '1px solid rgba(0, 103, 184, 0.2)',
-                        padding: '3px 10px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
+                        padding: '2px 8px',
+                        borderRadius: '2px',
+                        fontSize: '11px',
                         fontWeight: 600,
                       }}
                     >
-                      {featuredEvent.type.toUpperCase()}
+                      {featuredEvent.type}
                     </span>
                   )}
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>&bull; Flagship Showcase</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>&bull; Featured</span>
                 </div>
 
                 <h2
                   style={{
-                    fontSize: 'clamp(22px, 3.5vw, 30px)',
+                    fontSize: 'clamp(22px, 3.5vw, 28px)',
                     fontWeight: 600,
                     color: 'var(--text-strong)',
                     marginBottom: '10px',
@@ -238,32 +263,25 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '10px',
+                    gap: '8px',
                     fontSize: '13px',
                     color: 'var(--text-body)',
-                    marginBottom: '28px',
+                    marginBottom: '24px',
                     borderTop: '1px solid var(--border)',
                     paddingTop: '16px',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Calendar size={15} color="var(--brand)" />
-                    <span>
-                      {startDate.toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
+                    <Calendar size={14} color="var(--brand)" />
+                    <span>{formattedDate}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <MapPin size={15} color="var(--brand)" />
+                    <MapPin size={14} color="var(--brand)" />
                     <span>{featuredEvent.location}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Users size={15} color="var(--brand)" />
-                    <span>{featuredEvent.max_capacity} Confirmed Seats Available</span>
+                    <Users size={14} color="var(--brand)" />
+                    <span>{featuredEvent.max_capacity} Seats capacity</span>
                   </div>
                 </div>
 
@@ -272,51 +290,32 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                     href={`/events/${featuredEvent.slug}`}
                     className="fluent-btn fluent-btn-primary"
                     style={{
-                      padding: '10px 22px',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 20px',
+                      fontSize: '13.5px',
                       borderRadius: '4px',
-                      backgroundColor: 'var(--brand)',
-                      color: '#ffffff',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      gap: '6px',
                     }}
                   >
-                    Enter Event Portal <ArrowRight size={14} />
+                    View event details <ArrowRight size={14} />
                   </Link>
                   {featuredEvent.slug === 'synora-26' && (
                     <Link
                       href="/custom-events/synora"
                       className="fluent-btn fluent-btn-secondary"
                       style={{
-                        padding: '10px 18px',
-                        fontSize: '14px',
-                        fontWeight: 600,
+                        padding: '8px 16px',
+                        fontSize: '13.5px',
                         borderRadius: '4px',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
                       }}
                     >
-                      View F1 Microsite <ExternalLink size={13} />
+                      View microsite <ExternalLink size={13} />
                     </Link>
                   )}
-                  <Link
-                    href="/gallery"
-                    style={{
-                      color: 'var(--brand)',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      marginLeft: '6px',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <ImageIcon size={15} /> Event Gallery
-                  </Link>
                 </div>
               </div>
             </div>
@@ -328,11 +327,10 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '2px',
             overflowX: 'auto',
             marginBottom: '32px',
             borderBottom: '1px solid var(--border)',
-            paddingBottom: '0',
           }}
         >
           {categories.map((cat) => {
@@ -350,23 +348,24 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                   background: 'none',
                   border: 'none',
                   borderBottom: isActive ? '2px solid var(--brand)' : '2px solid transparent',
-                  padding: '10px 16px',
+                  padding: '8px 14px',
                   fontSize: '13.5px',
-                  fontWeight: isActive ? 600 : 500,
+                  fontWeight: isActive ? 600 : 400,
                   color: isActive ? 'var(--brand)' : 'var(--text-muted)',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.15s ease',
+                  gap: '6px',
+                  transition: 'color 0.15s ease, border-color 0.15s ease',
                   whiteSpace: 'nowrap',
+                  marginBottom: '-1px',
                 }}
               >
                 <span>{cat}</span>
                 <span
                   style={{
                     fontSize: '11px',
-                    padding: '1px 6px',
+                    padding: '1px 5px',
                     borderRadius: '10px',
                     background: isActive ? 'var(--brand-soft)' : 'var(--bg-soft)',
                     color: isActive ? 'var(--brand)' : 'var(--text-muted)',
@@ -380,7 +379,7 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
           })}
         </div>
 
-        {/* EVENT DIRECTORY CARDS GRID */}
+        {/* EVENT CARDS GRID */}
         {filteredEvents.length === 0 ? (
           <div
             style={{
@@ -388,21 +387,21 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
               textAlign: 'center',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
+              borderRadius: '4px',
             }}
           >
-            <p style={{ fontSize: '16px', color: 'var(--text-strong)', fontWeight: 600, marginBottom: '6px' }}>
+            <p style={{ fontSize: '15px', color: 'var(--text-strong)', fontWeight: 600, marginBottom: '4px' }}>
               No events found under &ldquo;{activeCategory}&rdquo;
             </p>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Try selecting &ldquo;All&rdquo; or explore other technical categories.
+              Select &ldquo;All&rdquo; to browse all scheduled community sessions.
             </p>
             <button
               onClick={() => setActiveCategory('All')}
               className="fluent-btn fluent-btn-secondary"
-              style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '4px' }}
+              style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '4px' }}
             >
-              Reset Category Filter
+              Reset filter
             </button>
           </div>
         ) : (
@@ -410,13 +409,20 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
-              gap: '24px',
+              gap: '20px',
             }}
           >
             {filteredEvents.map((evt) => {
-              const isCompleted = evt.status === 'completed';
+              const isCompleted =
+                evt.status === 'completed' ||
+                Boolean(
+                  evt.date_end &&
+                    !isNaN(new Date(evt.date_end).getTime()) &&
+                    new Date(evt.date_end).getTime() < Date.now()
+                );
+              const isRegOpen = !isCompleted && evt.registration_open;
               const isPaid = evt.form_requirements?.event_pricing === 'paid';
-              const priceLabel = isPaid ? `₹${evt.form_requirements?.registration_fee || 0}` : 'Free Entry';
+              const priceLabel = isPaid ? `₹${evt.form_requirements?.registration_fee || 0}` : 'Free entry';
               const evtDate = new Date(evt.date_start);
               const isDateValid = !isNaN(evtDate.getTime());
               const formattedDate = isDateValid
@@ -435,16 +441,16 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     border: '1px solid var(--border)',
                     boxShadow: 'var(--shadow-rest)',
                     overflow: 'hidden',
                   }}
                 >
                   {/* Thumbnail */}
-                  <div style={{ height: '190px', position: 'relative', overflow: 'hidden', background: 'var(--bg-soft)' }}>
+                  <div style={{ height: '180px', position: 'relative', overflow: 'hidden', background: 'var(--bg-soft)' }}>
                     <img
-                      src={evt.image_url || '/images/hero-bg.png'}
+                      src={evt.image_url || '/hero_bg.png'}
                       alt={evt.title}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
@@ -453,26 +459,27 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                     <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '6px' }}>
                       <span
                         style={{
-                          background: isCompleted ? 'rgba(50, 49, 48, 0.85)' : 'rgba(14, 124, 65, 0.90)',
-                          backdropFilter: 'blur(4px)',
+                          background: isCompleted
+                            ? 'rgba(50, 49, 48, 0.88)'
+                            : isRegOpen
+                            ? 'rgba(14, 124, 65, 0.90)'
+                            : 'rgba(217, 119, 6, 0.90)',
                           color: '#ffffff',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '2px',
                           fontSize: '11px',
                           fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em',
+                          letterSpacing: '0.02em',
                         }}
                       >
-                        {isCompleted ? 'Completed' : 'Upcoming'}
+                        {isCompleted ? 'Completed' : isRegOpen ? 'Open' : 'Closed'}
                       </span>
                       <span
                         style={{
-                          background: 'rgba(0, 0, 0, 0.70)',
-                          backdropFilter: 'blur(4px)',
+                          background: 'rgba(0, 0, 0, 0.72)',
                           color: '#ffffff',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '2px',
                           fontSize: '11px',
                           fontWeight: 500,
                         }}
@@ -489,11 +496,11 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                         right: '10px',
                         background: '#ffffff',
                         color: 'var(--text-strong)',
-                        padding: '3px 9px',
-                        borderRadius: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '2px',
                         fontSize: '11.5px',
-                        fontWeight: 700,
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                        fontWeight: 600,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.12)',
                       }}
                     >
                       {priceLabel}
@@ -501,13 +508,13 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                   </div>
 
                   {/* Body Content */}
-                  <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <h3
                       style={{
-                        fontSize: '18px',
+                        fontSize: '17px',
                         fontWeight: 600,
                         color: 'var(--text-strong)',
-                        marginBottom: '8px',
+                        marginBottom: '6px',
                         lineHeight: 1.3,
                       }}
                     >
@@ -518,9 +525,9 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                       style={{
                         fontSize: '13px',
                         color: 'var(--text-muted)',
-                        lineHeight: 1.6,
+                        lineHeight: 1.55,
                         flex: 1,
-                        marginBottom: '18px',
+                        marginBottom: '16px',
                         display: '-webkit-box',
                         WebkitLineClamp: 3,
                         WebkitBoxOrient: 'vertical',
@@ -537,9 +544,9 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                         gap: '6px',
                         fontSize: '12px',
                         color: 'var(--text-body)',
-                        marginBottom: '20px',
+                        marginBottom: '16px',
                         borderTop: '1px solid var(--border)',
-                        paddingTop: '14px',
+                        paddingTop: '12px',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -552,42 +559,23 @@ export default function EventsClient({ events }: { events: EventItem[] }) {
                       </div>
                     </div>
 
-                    {/* Microsoft Action Button Row */}
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Action Button */}
+                    <div>
                       <Link
                         href={`/events/${evt.slug}`}
                         className="fluent-btn fluent-btn-primary"
                         style={{
-                          flex: 1,
+                          width: '100%',
                           padding: '8px 14px',
                           fontSize: '13px',
-                          fontWeight: 600,
                           borderRadius: '4px',
-                          backgroundColor: 'var(--brand)',
-                          color: '#ffffff',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
                         }}
                       >
-                        View Portal <ArrowRight size={13} />
-                      </Link>
-                      <Link
-                        href="/gallery"
-                        className="fluent-btn fluent-btn-secondary"
-                        style={{
-                          padding: '8px 12px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          borderRadius: '4px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                        title="View photo archives"
-                      >
-                        <ImageIcon size={14} />
+                        View details <ArrowRight size={13} />
                       </Link>
                     </div>
                   </div>

@@ -2,9 +2,56 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Edit2, Calendar, MapPin, Users, Check, X, ShieldAlert, Trash2, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Plus, Award, Edit2, Calendar, MapPin, Users, Check, X, ShieldAlert, Trash2, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { EventItem } from '@/lib/data/mock-fallback';
 import { createClient } from '@/lib/supabase/client';
+
+const DEFAULT_CERTIFICATE_TEMPLATE = `<div style="width: 860px; height: 580px; padding: 48px 40px; background: #ffffff; border: 12px solid #0067b8; box-sizing: border-box; text-align: center; position: relative; font-family: 'Segoe UI', system-ui, sans-serif; color: #242424; margin: 0 auto; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+  <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px;">
+    <div style="display: grid; grid-template-columns: repeat(2, 7px); grid-template-rows: repeat(2, 7px); gap: 2px;">
+      <div style="background: #f25022;"></div>
+      <div style="background: #7fba00;"></div>
+      <div style="background: #00a4ef;"></div>
+      <div style="background: #ffb900;"></div>
+    </div>
+    <span style="color: #0067b8; font-size: 13px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;">
+      Microsoft Student Community &bull; SRM University-AP
+    </span>
+  </div>
+
+  <h1 style="color: #0067b8; font-size: 34px; font-weight: 700; letter-spacing: -0.01em; margin: 8px 0 16px 0;">
+    CERTIFICATE OF PARTICIPATION
+  </h1>
+
+  <p style="color: #616161; font-size: 14px; margin: 0 0 14px 0; text-transform: uppercase; letter-spacing: 1px;">
+    This is proudly presented to
+  </p>
+
+  <h2 style="color: #242424; font-size: 32px; font-weight: 700; margin: 0 0 20px 0; border-bottom: 2px solid #0067b8; display: inline-block; padding: 0 24px 6px 24px;">
+    {{NAME}}
+  </h2>
+
+  <p style="color: #424242; font-size: 15px; max-width: 680px; margin: 0 auto 24px auto; line-height: 1.6;">
+    for demonstrating technical excellence and active participation in <strong>{{EVENT_TITLE}}</strong> organized by Microsoft Student Community at <strong>{{COLLEGE_NAME}}</strong> on <strong>{{EVENT_DATE}}</strong>.
+  </p>
+
+  <div style="position: absolute; bottom: 36px; left: 48px; right: 48px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #e0e0e0; padding-top: 14px;">
+    <div style="text-align: left;">
+      <div style="font-size: 13px; font-weight: 700; color: #242424;">Dr. Murali Krishna Enduri</div>
+      <div style="font-size: 11px; color: #616161;">Faculty Advisor, MSC SRM-AP</div>
+    </div>
+
+    <div style="text-align: center;">
+      <div style="font-size: 10px; color: #8a8a8a; text-transform: uppercase; letter-spacing: 1px;">Ticket &bull; Verification Hash</div>
+      <div style="font-size: 12px; font-weight: 600; color: #0067b8; font-family: monospace;">{{TICKET_ID}}</div>
+    </div>
+
+    <div style="text-align: right;">
+      <div style="font-size: 13px; font-weight: 700; color: #242424;">Core Executive Board</div>
+      <div style="font-size: 11px; color: #616161;">Microsoft Student Community</div>
+    </div>
+  </div>
+</div>`;
 
 export default function AdminEventsPage() {
   const supabase = createClient();
@@ -13,6 +60,7 @@ export default function AdminEventsPage() {
   const [editingEvent, setEditingEvent] = useState<Partial<EventItem> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showCertPreviewModal, setShowCertPreviewModal] = useState(false);
 
   const fetchEvents = async () => {
     try {
@@ -102,6 +150,7 @@ export default function AdminEventsPage() {
         max_team_size: 4,
         provide_certificates: true,
       },
+      certificate_html: DEFAULT_CERTIFICATE_TEMPLATE,
     });
     setIsModalOpen(true);
   };
@@ -127,6 +176,7 @@ export default function AdminEventsPage() {
       ...ev,
       date_start: startLocal,
       date_end: endLocal,
+      certificate_html: ev.certificate_html || DEFAULT_CERTIFICATE_TEMPLATE,
     });
     setIsModalOpen(true);
   };
@@ -150,27 +200,34 @@ export default function AdminEventsPage() {
           : new Date().toISOString(),
       };
 
+      let res: Response;
       if (editingEvent.id) {
         // Update existing
-        await fetch('/api/admin/events', {
+        res = await fetch('/api/admin/events', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new
-        await fetch('/api/admin/events', {
+        res = await fetch('/api/admin/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       }
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || 'Failed to save event to database.');
+      }
+
       await fetchEvents();
       setIsModalOpen(false);
       setEditingEvent(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save event:', err);
-      alert('Failed to save event. Check console for details.');
+      alert(err.message || 'Failed to save event. Check console for details.');
     } finally {
       setSaving(false);
     }
@@ -626,7 +683,7 @@ export default function AdminEventsPage() {
                     type="url"
                     value={editingEvent.image_url || ''}
                     onChange={(e) => setEditingEvent({ ...editingEvent, image_url: e.target.value })}
-                    placeholder="https://... or /images/hero-bg.png"
+                    placeholder="https://... or /hero_bg.png"
                     className="fluent-input"
                     style={{ flex: 1, height: '38px', borderRadius: '4px' }}
                   />
@@ -757,6 +814,138 @@ export default function AdminEventsPage() {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* SECTION 4: E-CERTIFICATE & ACCREDITATION */}
+              <div
+                style={{
+                  background: 'var(--bg-soft)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Award size={18} color="var(--brand)" />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong)' }}>
+                      E-Certificate &amp; Institutional Accreditation
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: editingEvent.form_requirements?.provide_certificates ? 'var(--success-bg)' : 'var(--border)',
+                      color: editingEvent.form_requirements?.provide_certificates ? 'var(--success)' : 'var(--text-muted)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {editingEvent.form_requirements?.provide_certificates ? 'Certificates Enabled' : 'Disabled'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, marginBottom: '4px' }}>
+                      Issue E-Certificates to Attendees?
+                    </label>
+                    <select
+                      value={editingEvent.form_requirements?.provide_certificates ? 'yes' : 'no'}
+                      onChange={(e) => {
+                        const enable = e.target.value === 'yes';
+                        setEditingEvent({
+                          ...editingEvent,
+                          form_requirements: {
+                            ...editingEvent.form_requirements,
+                            event_pricing: (editingEvent.form_requirements?.event_pricing || 'free') as 'free' | 'paid',
+                            provide_certificates: enable,
+                          },
+                          certificate_html: enable ? (editingEvent.certificate_html || DEFAULT_CERTIFICATE_TEMPLATE) : editingEvent.certificate_html,
+                        });
+                      }}
+                      className="fluent-input"
+                      style={{ width: '100%', height: '36px', borderRadius: '4px' }}
+                    >
+                      <option value="yes">Yes: Issue Verifiable E-Certificates</option>
+                      <option value="no">No: Do not issue certificates</option>
+                    </select>
+                  </div>
+                </div>
+
+                {editingEvent.form_requirements?.provide_certificates && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-strong)' }}>
+                          Certificate HTML Template Code
+                        </label>
+                        <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                          Verified participant data is dynamically substituted when attendees claim their certificate.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingEvent({
+                              ...editingEvent,
+                              certificate_html: DEFAULT_CERTIFICATE_TEMPLATE,
+                            });
+                          }}
+                          className="fluent-btn fluent-btn-secondary"
+                          style={{ fontSize: '11.5px', padding: '4px 10px', height: '28px' }}
+                        >
+                          Load Microsoft Template
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCertPreviewModal(true)}
+                          className="fluent-btn fluent-btn-secondary"
+                          style={{ fontSize: '11.5px', padding: '4px 10px', height: '28px' }}
+                        >
+                          Preview Sandbox
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tokens Guide */}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(0, 103, 184, 0.05)', padding: '8px 10px', borderRadius: '4px', border: '1px solid rgba(0, 103, 184, 0.15)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--brand)' }}>Supported Tokens:</span>
+                      {['{{NAME}}', '{{EVENT_TITLE}}', '{{COLLEGE_NAME}}', '{{EVENT_DATE}}', '{{TICKET_ID}}', '{{REG_NUMBER}}', '{{ROLE}}', '{{ISSUED_DATE}}'].map((t) => (
+                        <code key={t} style={{ fontSize: '11px', background: 'var(--surface)', padding: '2px 6px', borderRadius: '3px', border: '1px solid var(--border)', color: 'var(--brand)', fontFamily: 'monospace' }}>
+                          {t}
+                        </code>
+                      ))}
+                    </div>
+
+                    {/* HTML Code Editor */}
+                    <textarea
+                      rows={10}
+                      value={editingEvent.certificate_html || ''}
+                      onChange={(e) => setEditingEvent({ ...editingEvent, certificate_html: e.target.value })}
+                      placeholder="Enter raw HTML/CSS certificate template..."
+                      spellCheck={false}
+                      className="fluent-input"
+                      style={{
+                        width: '100%',
+                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                        borderRadius: '4px',
+                        padding: '10px',
+                        background: '#1e1e1e',
+                        color: '#d4d4d4',
+                        border: '1px solid #333',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Modal Actions */}

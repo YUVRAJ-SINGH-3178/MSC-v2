@@ -578,6 +578,47 @@ create policy "Staff write images"
       where id = auth.uid() and role = 'admin'
     )
   );
+create policy "registrations_staff_insert" on public.registrations
+  for insert with check (public.current_user_role() in ('admin', 'core_member'));
+
+create policy "registrations_staff_update" on public.registrations
+  for update using (public.current_user_role() in ('admin', 'core_member'));
+
+create policy "registrations_staff_delete" on public.registrations
+  for delete using (public.current_user_role() in ('admin', 'core_member'));
+
+-- 4. teams
+create policy "teams_public_read" on public.teams
+  for select using (true);
+
+create policy "teams_staff_write" on public.teams
+  for all using (public.current_user_role() in ('admin', 'core_member'));
+
+-- 5. team_members
+create policy "team_members_public_read" on public.team_members
+  for select using (true);
+
+create policy "team_members_staff_write" on public.team_members
+  for all using (public.current_user_role() in ('admin', 'core_member'));
+
+-- 6. gallery_items
+create policy "gallery_items_public_read" on public.gallery_items
+  for select using (true);
+
+create policy "gallery_items_staff_write" on public.gallery_items
+  for all using (public.current_user_role() in ('admin', 'core_member'));
+
+-- 7. password_reset_requests
+create policy "password_reset_requests_admin_read" on public.password_reset_requests
+  for select using (public.current_user_role() = 'admin');
+
+create policy "password_reset_requests_admin_update" on public.password_reset_requests
+  for update using (public.current_user_role() = 'admin');
+
+-- 8. payments & payment_orders: Revoke all from anon & authenticated
+revoke all on public.payments from anon, authenticated;
+revoke all on public.payment_orders from anon, authenticated;
+
 
 -- Users manage their own avatars (path starts with their user id)
 drop policy if exists "Users manage own avatars" on storage.objects;

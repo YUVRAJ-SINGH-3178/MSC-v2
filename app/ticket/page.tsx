@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Search, Ticket, Calendar, MapPin, ArrowRight, AlertCircle } from 'lucide-react';
+import { Ticket, Calendar, MapPin, ArrowRight, AlertCircle } from 'lucide-react';
 
 interface ResolvedTicket {
   hash_payload: string;
@@ -29,7 +29,7 @@ export default function TicketLookupPage() {
       const res = await fetch('/api/ticket/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ query: email.trim() }),
       });
 
       const data = await res.json();
@@ -39,7 +39,7 @@ export default function TicketLookupPage() {
 
       setResults(data.tickets || []);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Lookup failed. Please check the email entered.');
+      setErrorMsg(err.message || 'Lookup failed. Please check the email or registration number entered.');
     } finally {
       setLoading(false);
     }
@@ -47,28 +47,28 @@ export default function TicketLookupPage() {
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh', padding: '60px 0 100px 0' }}>
-      <div className="container" style={{ maxWidth: '640px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+      <div className="container" style={{ maxWidth: '600px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div
             style={{
-              width: '52px',
-              height: '52px',
+              width: '44px',
+              height: '44px',
               background: 'var(--brand-soft)',
               color: 'var(--brand)',
-              borderRadius: 'var(--radius-sm)',
+              borderRadius: '4px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '16px',
+              marginBottom: '12px',
             }}
           >
-            <Ticket size={28} />
+            <Ticket size={22} />
           </div>
-          <h1 style={{ fontSize: '32px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '8px' }}>
-            Find Your Digital Ticket
+          <h1 style={{ fontSize: '28px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '6px' }}>
+            Find your ticket
           </h1>
-          <p style={{ fontSize: '15px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            Lost your pass link? Enter your registered email address below. We match both lead registrants and named teammates.
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Enter your registered email address or college registration number below to retrieve your event pass.
           </p>
         </div>
 
@@ -77,25 +77,25 @@ export default function TicketLookupPage() {
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
+            borderRadius: '4px',
             boxShadow: 'var(--shadow-rest)',
-            padding: '32px',
-            marginBottom: '32px',
+            padding: '28px',
+            marginBottom: '28px',
           }}
         >
-          <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-strong)' }}>
-                Registered Email Address
+                Registered email address or registration number
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                placeholder="name@srmap.edu.in"
+                placeholder="name@srmap.edu.in or AP21110010..."
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="fluent-input"
-                style={{ padding: '12px', fontSize: '15px' }}
+                style={{ padding: '8px 12px', fontSize: '14px', borderRadius: '4px' }}
               />
             </div>
 
@@ -103,9 +103,9 @@ export default function TicketLookupPage() {
               type="submit"
               disabled={loading}
               className="fluent-btn fluent-btn-primary"
-              style={{ padding: '12px', fontSize: '15px' }}
+              style={{ padding: '10px 16px', fontSize: '14px', borderRadius: '4px' }}
             >
-              {loading ? 'Searching Ledger...' : 'Find My Admission Passes'}
+              {loading ? 'Searching...' : 'Find ticket'}
             </button>
           </form>
         </div>
@@ -116,24 +116,24 @@ export default function TicketLookupPage() {
             style={{
               background: 'var(--danger-bg)',
               color: 'var(--danger)',
-              padding: '16px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '14px',
+              padding: '12px 16px',
+              borderRadius: '4px',
+              fontSize: '13px',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '8px',
               marginBottom: '24px',
             }}
           >
-            <AlertCircle size={18} /> {errorMsg}
+            <AlertCircle size={16} /> {errorMsg}
           </div>
         )}
 
         {/* Search Results */}
         {results !== null && (
           <div>
-            <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '16px' }}>
-              Found Passes ({results.length})
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '14px' }}>
+              Found tickets ({results.length})
             </h3>
 
             {results.length === 0 ? (
@@ -141,42 +141,58 @@ export default function TicketLookupPage() {
                 style={{
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '32px',
+                  borderRadius: '4px',
+                  padding: '28px',
                   textAlign: 'center',
                   color: 'var(--text-muted)',
+                  fontSize: '13.5px',
                 }}
               >
-                No active confirmed tickets found matching <strong>{email}</strong>. Check for typos or register for an upcoming event.
+                No confirmed tickets found matching <strong>{email}</strong>. Please check for typos or register for an upcoming event.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {results.map((t) => (
                   <div
                     key={t.hash_payload}
                     className="fluent-card"
-                    style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}
+                    style={{
+                      padding: '20px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '14px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                    }}
                   >
                     <div>
-                      <span className="fluent-badge badge-success" style={{ marginBottom: '8px' }}>
+                      <span className="fluent-badge badge-success" style={{ marginBottom: '6px' }}>
                         {t.status.toUpperCase()}
                       </span>
-                      <h4 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', margin: '4px 0' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: '4px 0' }}>
                         {t.event_title}
                       </h4>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '12px', marginTop: '4px' }}>
-                        <span>{new Date(t.date_start).toLocaleDateString()}</span>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '10px', marginTop: '4px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={12} color="var(--brand)" />
+                          {new Date(t.date_start).toLocaleDateString()}
+                        </span>
                         <span>&bull;</span>
-                        <span>{t.location}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <MapPin size={12} color="var(--brand)" />
+                          {t.location}
+                        </span>
                       </div>
                     </div>
 
                     <Link
                       href={`/ticket/${t.hash_payload}`}
                       className="fluent-btn fluent-btn-primary"
-                      style={{ padding: '8px 18px', fontSize: '13px' }}
+                      style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                      Open Digital Ticket &rarr;
+                      View ticket <ArrowRight size={13} />
                     </Link>
                   </div>
                 ))}

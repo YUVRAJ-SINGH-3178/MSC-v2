@@ -11,7 +11,7 @@
  *   supported in the Edge Runtime.
  *
  * Upstash is a plain REST API, so the middleware path can talk to it over
- * `fetch` with no SDK at all — fully edge-compatible, and it also strips the
+ * `fetch` with no SDK at all (fully edge-compatible), and it also strips the
  * SDK from the middleware bundle.
  *
  * The middleware uses a fixed window rather than the sliding window in

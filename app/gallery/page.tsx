@@ -2,15 +2,36 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { FALLBACK_GALLERY } from '@/lib/data/mock-fallback';
-import { Search, X, ChevronLeft, ChevronRight, Maximize2, Tag, Calendar, Sparkles } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Search, X, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 
 export default function GalleryPage() {
+  const [items, setItems] = useState(FALLBACK_GALLERY);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
+  useEffect(() => {
+    const fetchGallery = async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('gallery_items')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          setItems(data as any);
+        }
+      } catch {
+        // Offline fallback
+      }
+    };
+    fetchGallery();
+  }, []);
+
   const categories = [
-    { id: 'all', label: 'All Archives' },
+    { id: 'all', label: 'All photos' },
     { id: 'hackathons', label: 'Hackathons' },
     { id: 'workshops', label: 'Workshops' },
     { id: 'festivals', label: 'Festivals' },
@@ -18,7 +39,7 @@ export default function GalleryPage() {
     { id: 'awards', label: 'Awards' },
   ];
 
-  const filteredItems = FALLBACK_GALLERY.filter((item) => {
+  const filteredItems = items.filter((item) => {
     const matchesCategory = activeCategory === 'all' || item.category.toLowerCase() === activeCategory.toLowerCase();
     const query = searchQuery.trim().toLowerCase();
     const matchesSearch =
@@ -100,7 +121,7 @@ export default function GalleryPage() {
               <div style={{ background: '#00a4ef', borderRadius: '1px' }} />
               <div style={{ background: '#ffb900', borderRadius: '1px' }} />
             </div>
-            <span>MICROSOFT MEDIA ARCHIVES &bull; CAMPUS VISUAL STORIES</span>
+            <span>MICROSOFT STUDENT COMMUNITY &bull; GALLERY</span>
           </div>
 
           <h1
@@ -113,7 +134,7 @@ export default function GalleryPage() {
               marginBottom: '12px',
             }}
           >
-            Visual Archives &amp; Moments
+            Event gallery
           </h1>
 
           <p
@@ -123,25 +144,25 @@ export default function GalleryPage() {
               lineHeight: 1.6,
             }}
           >
-            Photographic documentation of hackathon sprints, technical keynotes, Azure cloud architecture workshops, and campus community summits at SRM University-AP.
+            Moments and highlights from hackathons, cloud workshops, speaker sessions, and campus events at SRM University-AP.
           </p>
         </div>
 
-        {/* Microsoft Fluent Search & Pivot Bar */}
+        {/* Search & Pivot Bar */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px',
-            marginBottom: '36px',
+            gap: '16px',
+            marginBottom: '32px',
             borderBottom: '1px solid var(--border)',
-            paddingBottom: '20px',
+            paddingBottom: '16px',
           }}
         >
           {/* Fluent Search Box */}
-          <div style={{ position: 'relative', maxWidth: '440px', width: '100%' }}>
+          <div style={{ position: 'relative', maxWidth: '400px', width: '100%' }}>
             <Search
-              size={16}
+              size={15}
               style={{
                 position: 'absolute',
                 left: '12px',
@@ -158,18 +179,15 @@ export default function GalleryPage() {
                 setSearchQuery(e.target.value);
                 setSelectedIdx(null);
               }}
-              placeholder="Filter archives by title, keywords, or tags..."
+              placeholder="Search by title or category..."
               className="fluent-input"
               style={{
-                paddingLeft: '36px',
-                paddingRight: searchQuery ? '36px' : '14px',
+                paddingLeft: '34px',
+                paddingRight: searchQuery ? '34px' : '12px',
                 fontSize: '13px',
                 borderRadius: '4px',
-                height: '38px',
+                height: '36px',
                 width: '100%',
-                border: '1px solid var(--border-strong)',
-                background: 'var(--surface)',
-                color: 'var(--text-strong)',
               }}
             />
             {searchQuery && (
@@ -178,7 +196,7 @@ export default function GalleryPage() {
                 onClick={() => setSearchQuery('')}
                 style={{
                   position: 'absolute',
-                  right: '10px',
+                  right: '8px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   background: 'none',
@@ -202,18 +220,16 @@ export default function GalleryPage() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '2px',
               overflowX: 'auto',
-              borderBottom: '1px solid var(--border)',
-              paddingBottom: '0',
             }}
           >
             {categories.map((cat) => {
               const isActive = activeCategory === cat.id;
               const count =
                 cat.id === 'all'
-                  ? FALLBACK_GALLERY.length
-                  : FALLBACK_GALLERY.filter((item) => item.category.toLowerCase() === cat.id.toLowerCase()).length;
+                  ? items.length
+                  : items.filter((item) => item.category.toLowerCase() === cat.id.toLowerCase()).length;
 
               return (
                 <button
@@ -226,23 +242,24 @@ export default function GalleryPage() {
                     background: 'none',
                     border: 'none',
                     borderBottom: isActive ? '2px solid var(--brand)' : '2px solid transparent',
-                    padding: '8px 14px',
+                    padding: '8px 12px',
                     fontSize: '13.5px',
-                    fontWeight: isActive ? 600 : 500,
+                    fontWeight: isActive ? 600 : 400,
                     color: isActive ? 'var(--brand)' : 'var(--text-muted)',
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    transition: 'all 0.15s ease',
+                    transition: 'color 0.15s ease, border-color 0.15s ease',
                     whiteSpace: 'nowrap',
+                    marginBottom: '-1px',
                   }}
                 >
                   <span>{cat.label}</span>
                   <span
                     style={{
                       fontSize: '11px',
-                      padding: '1px 6px',
+                      padding: '1px 5px',
                       borderRadius: '10px',
                       background: isActive ? 'var(--brand-soft)' : 'var(--bg-soft)',
                       color: isActive ? 'var(--brand)' : 'var(--text-muted)',
@@ -255,27 +272,27 @@ export default function GalleryPage() {
               );
             })}
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap', padding: '0 8px' }}>
-              Showing {filteredItems.length} {filteredItems.length === 1 ? 'record' : 'records'}
+              Showing {filteredItems.length} {filteredItems.length === 1 ? 'photo' : 'photos'}
             </span>
           </div>
         </div>
 
-        {/* Photo Grid with Microsoft Fluent Card Styling */}
+        {/* Photo Grid (Max 3 columns on standard desktop) */}
         {filteredItems.length === 0 ? (
           <div
             style={{
               padding: '60px 24px',
               textAlign: 'center',
               background: 'var(--surface)',
-              borderRadius: '8px',
+              borderRadius: '4px',
               border: '1px solid var(--border)',
             }}
           >
-            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '6px' }}>
-              No visual archives match your criteria
+            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
+              No photos found
             </p>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Try adjusting your query or resetting to all categories.
+              Try adjusting your query or resetting filters.
             </p>
             <button
               onClick={() => {
@@ -283,16 +300,16 @@ export default function GalleryPage() {
                 setSearchQuery('');
               }}
               className="fluent-btn fluent-btn-secondary"
-              style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '4px' }}
+              style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '4px' }}
             >
-              Reset Filters
+              Reset filters
             </button>
           </div>
         ) : (
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
               gap: '20px',
             }}
           >
@@ -308,12 +325,12 @@ export default function GalleryPage() {
                     setSelectedIdx(idx);
                   }
                 }}
-                className="fluent-card focus-card-container"
+                className="fluent-card gallery-card"
                 style={{
                   cursor: 'pointer',
                   position: 'relative',
                   overflow: 'hidden',
-                  borderRadius: '6px',
+                  borderRadius: '4px',
                   border: '1px solid var(--border)',
                   background: 'var(--surface)',
                   boxShadow: 'var(--shadow-rest)',
@@ -332,9 +349,9 @@ export default function GalleryPage() {
                       height: '100%',
                       objectFit: 'cover',
                       display: 'block',
-                      transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                      transition: 'transform 0.3s ease',
                     }}
-                    className="focus-card-image"
+                    className="gallery-card-img"
                   />
 
                   {/* Top Category Badge */}
@@ -343,23 +360,22 @@ export default function GalleryPage() {
                       position: 'absolute',
                       top: '10px',
                       left: '10px',
-                      background: 'rgba(0, 0, 0, 0.75)',
-                      backdropFilter: 'blur(4px)',
+                      background: 'rgba(0, 0, 0, 0.72)',
                       color: '#ffffff',
                       fontSize: '11px',
                       fontWeight: 600,
-                      padding: '3px 8px',
-                      borderRadius: '3px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
+                      padding: '2px 8px',
+                      borderRadius: '2px',
+                      letterSpacing: '0.02em',
                       zIndex: 2,
                     }}
                   >
                     {photo.category}
                   </span>
 
-                  {/* Hover icon */}
+                  {/* Hover icon (visible on hover) */}
                   <div
+                    className="gallery-zoom-badge"
                     style={{
                       position: 'absolute',
                       bottom: '10px',
@@ -367,7 +383,7 @@ export default function GalleryPage() {
                       background: 'rgba(0, 103, 184, 0.9)',
                       color: '#ffffff',
                       padding: '5px',
-                      borderRadius: '4px',
+                      borderRadius: '2px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -379,10 +395,10 @@ export default function GalleryPage() {
                 </div>
 
                 {/* Card Information Footer */}
-                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   <h3
                     style={{
-                      fontSize: '14.5px',
+                      fontSize: '14px',
                       fontWeight: 600,
                       color: 'var(--text-strong)',
                       lineHeight: 1.3,
@@ -417,13 +433,12 @@ export default function GalleryPage() {
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(10, 12, 16, 0.88)',
+              backgroundColor: 'rgba(10, 12, 16, 0.85)',
               zIndex: 1000,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '24px',
-              backdropFilter: 'blur(6px)',
             }}
           >
             {/* Previous Button */}
@@ -443,18 +458,17 @@ export default function GalleryPage() {
                   background: 'rgba(0, 0, 0, 0.6)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   color: '#ffffff',
-                  width: '44px',
-                  height: '44px',
+                  width: '40px',
+                  height: '40px',
                   borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
                   zIndex: 1010,
-                  transition: 'background 0.2s ease',
                 }}
               >
-                <ChevronLeft size={24} />
+                <ChevronLeft size={22} />
               </button>
             )}
 
@@ -475,18 +489,17 @@ export default function GalleryPage() {
                   background: 'rgba(0, 0, 0, 0.6)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   color: '#ffffff',
-                  width: '44px',
-                  height: '44px',
+                  width: '40px',
+                  height: '40px',
                   borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
                   zIndex: 1010,
-                  transition: 'background 0.2s ease',
                 }}
               >
-                <ChevronRight size={24} />
+                <ChevronRight size={22} />
               </button>
             )}
 
@@ -494,10 +507,10 @@ export default function GalleryPage() {
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
-                maxWidth: '960px',
+                maxWidth: '920px',
                 width: '100%',
                 background: 'var(--surface)',
-                borderRadius: '6px',
+                borderRadius: '4px',
                 overflow: 'hidden',
                 boxShadow: 'var(--shadow-lift)',
                 position: 'relative',
@@ -512,7 +525,7 @@ export default function GalleryPage() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '12px 18px',
+                  padding: '10px 16px',
                   borderBottom: '1px solid var(--border)',
                   background: 'var(--bg-soft)',
                 }}
@@ -524,48 +537,42 @@ export default function GalleryPage() {
                       color: 'var(--brand)',
                       border: '1px solid rgba(0, 103, 184, 0.2)',
                       padding: '2px 8px',
-                      borderRadius: '3px',
+                      borderRadius: '2px',
                       fontSize: '11px',
                       fontWeight: 600,
-                      textTransform: 'uppercase',
                     }}
                   >
                     {currentPhoto.category}
                   </span>
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Item {selectedIdx + 1} of {filteredItems.length}
+                    {selectedIdx + 1} of {filteredItems.length}
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Tip: Arrow keys to browse &bull; Esc to close
-                  </span>
-                  <button
-                    onClick={handleClose}
-                    aria-label="Close dialog"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-strong)',
-                      padding: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
+                <button
+                  onClick={handleClose}
+                  aria-label="Close dialog"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-strong)',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={18} />
+                </button>
               </div>
 
               {/* Image Viewport */}
               <div
                 style={{
-                  maxHeight: '65vh',
-                  minHeight: '340px',
-                  background: '#05070a',
+                  maxHeight: '62vh',
+                  minHeight: '320px',
+                  background: '#0a0a0a',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -577,7 +584,7 @@ export default function GalleryPage() {
                   alt={currentPhoto.alt_text}
                   style={{
                     maxWidth: '100%',
-                    maxHeight: '65vh',
+                    maxHeight: '62vh',
                     objectFit: 'contain',
                     userSelect: 'none',
                   }}
@@ -585,36 +592,36 @@ export default function GalleryPage() {
               </div>
 
               {/* Caption & Metadata Footer */}
-              <div style={{ padding: '18px 24px', background: 'var(--surface)' }}>
+              <div style={{ padding: '16px 20px', background: 'var(--surface)' }}>
                 <h2
                   style={{
-                    fontSize: '18px',
+                    fontSize: '17px',
                     fontWeight: 600,
                     color: 'var(--text-strong)',
-                    marginBottom: '6px',
+                    marginBottom: '4px',
                   }}
                 >
                   {currentPhoto.title}
                 </h2>
-                <p style={{ fontSize: '13.5px', color: 'var(--text-body)', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-body)', margin: 0, lineHeight: 1.5 }}>
                   {currentPhoto.alt_text}
                 </p>
                 <div
                   style={{
-                    marginTop: '12px',
-                    fontSize: '12px',
+                    marginTop: '10px',
+                    fontSize: '11.5px',
                     color: 'var(--text-muted)',
                     display: 'flex',
-                    gap: '12px',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
                     borderTop: '1px solid var(--border)',
                     paddingTop: '10px',
+                    flexWrap: 'wrap',
+                    gap: '8px',
                   }}
                 >
-                  <span>Microsoft Student Community Archives</span>
-                  <span>&bull;</span>
-                  <span>SRM University AP</span>
-                  <span>&bull;</span>
-                  <span>Chapter &apos;26</span>
+                  <span>Microsoft Student Community &bull; SRM University-AP</span>
+                  <span>Tip: Use Arrow keys to browse &bull; Esc to close</span>
                 </div>
               </div>
             </div>
@@ -623,8 +630,15 @@ export default function GalleryPage() {
       </div>
 
       <style jsx>{`
-        .focus-card-container:hover .focus-card-image {
-          transform: scale(1.04);
+        .gallery-card .gallery-zoom-badge {
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+        .gallery-card:hover .gallery-zoom-badge {
+          opacity: 1;
+        }
+        .gallery-card:hover .gallery-card-img {
+          transform: scale(1.03);
         }
       `}</style>
     </div>

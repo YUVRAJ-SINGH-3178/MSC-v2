@@ -2,28 +2,39 @@ import React from 'react';
 
 export default function Loading() {
   return (
-    <div style={{
-      minHeight: '60vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '16px',
-      background: 'var(--bg)'
-    }}>
-      <div style={{
-        width: '40px',
-        height: '40px',
-        border: '3px solid var(--border)',
-        borderTopColor: 'var(--brand)',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite'
-      }} />
-      <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.02em' }}>
-        Loading Microsoft Student Community...
+    <div
+      style={{
+        minHeight: '60vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px',
+        background: 'var(--bg)',
+      }}
+    >
+      {/* Fluent 2 Circular Progress */}
+      <div
+        style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          border: '2.5px solid var(--border)',
+          borderTopColor: 'var(--brand)',
+          animation: 'fluent-spin 0.75s cubic-bezier(0.53, 0.21, 0.29, 0.67) infinite',
+        }}
+      />
+      <span
+        style={{
+          fontSize: '13px',
+          color: 'var(--text-muted)',
+          fontWeight: 500,
+        }}
+      >
+        Loading...
       </span>
       <style>{`
-        @keyframes spin {
+        @keyframes fluent-spin {
           to { transform: rotate(360deg); }
         }
       `}</style>

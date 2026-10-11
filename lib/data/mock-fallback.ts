@@ -70,7 +70,7 @@ export const FALLBACK_EVENTS: EventItem[] = [
     date_end: '2026-09-18T03:00:00Z',
     image_url: 'https://lkbwunzswqbnoygxtilm.supabase.co/storage/v1/object/public/webpage/hackmsc1.jpg',
     banner_url: 'https://lkbwunzswqbnoygxtilm.supabase.co/storage/v1/object/public/webpage/hackmsc1.jpg',
-    registration_open: true,
+    registration_open: false,
     show_opening_soon: false,
     is_published: true,
     max_capacity: 400,
@@ -84,7 +84,7 @@ export const FALLBACK_EVENTS: EventItem[] = [
       req_reg_num: true,
       req_branch: true,
       req_spec: true,
-      provide_certificates: true,
+      provide_certificates: false,
       agenda: [
         { time: '09:00 AM', title: 'Check-in & Kit Distribution', desc: 'Badge scan and team kit distribution' },
         { time: '10:00 AM', title: 'Orientation & Technical Talks', desc: '6 hours of keynotes, cloud sessions, and mentor guidance' },

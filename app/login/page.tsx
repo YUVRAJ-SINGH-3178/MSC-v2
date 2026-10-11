@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -67,14 +67,14 @@ export default function LoginPage() {
         if (!res.ok) throw new Error(data.error || 'Failed to submit reset request.');
         setMessage({
           type: 'success',
-          text: 'Password reset request submitted securely for administrator approval.',
+          text: 'Password reset request submitted for administrator approval.',
         });
       }
     } catch (err: any) {
       if (err.message === 'Failed to fetch' || err.message?.includes('fetch')) {
         setMessage({
           type: 'error',
-          text: 'Cannot reach Supabase: Please verify network connection or Supabase status.',
+          text: 'Cannot reach authentication service. Please check your network connection.',
         });
       } else {
         setMessage({ type: 'error', text: err.message || 'Authentication error.' });
@@ -87,7 +87,7 @@ export default function LoginPage() {
   return (
     <div
       style={{
-        background: 'var(--bg-soft)',
+        background: 'var(--bg)',
         minHeight: '88vh',
         display: 'flex',
         flexDirection: 'column',
@@ -97,15 +97,15 @@ export default function LoginPage() {
         fontFamily: 'var(--font-family)',
       }}
     >
-      {/* Authentic Microsoft Login Card */}
+      {/* Microsoft Authentic Login Card: square corners on desktop */}
       <div
         style={{
           maxWidth: '440px',
           width: '100%',
           background: 'var(--surface)',
           border: '1px solid var(--border)',
-          borderRadius: '8px',
-          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
+          borderRadius: '0',
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04), 0 14px 40px rgba(0, 0, 0, 0.06)',
           padding: 'clamp(28px, 5vw, 44px)',
         }}
       >
@@ -114,23 +114,19 @@ export default function LoginPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 9px)',
-              gridTemplateRows: 'repeat(2, 9px)',
+              gridTemplateColumns: 'repeat(2, 10px)',
+              gridTemplateRows: 'repeat(2, 10px)',
               gap: '2px',
               flexShrink: 0,
             }}
           >
-            <div style={{ background: '#f25022', borderRadius: '1px' }} />
-            <div style={{ background: '#7fba00', borderRadius: '1px' }} />
-            <div style={{ background: '#00a4ef', borderRadius: '1px' }} />
-            <div style={{ background: '#ffb900', borderRadius: '1px' }} />
+            <div style={{ background: '#f25022', borderRadius: '0.5px' }} />
+            <div style={{ background: '#7fba00', borderRadius: '0.5px' }} />
+            <div style={{ background: '#00a4ef', borderRadius: '0.5px' }} />
+            <div style={{ background: '#ffb900', borderRadius: '0.5px' }} />
           </div>
           <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', letterSpacing: '-0.02em' }}>
             Microsoft
-          </span>
-          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>|</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Student Community
           </span>
         </div>
 
@@ -149,7 +145,7 @@ export default function LoginPage() {
         </h1>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 24px 0' }}>
           {mode === 'signin' && 'to continue to Microsoft Student Community SRM AP'}
-          {mode === 'reset' && 'Submit an encrypted password update for approval'}
+          {mode === 'reset' && 'Submit a password update request for approval'}
         </p>
 
         {/* Status Message */}
@@ -157,7 +153,7 @@ export default function LoginPage() {
           <div
             style={{
               padding: '10px 14px',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               fontSize: '12.5px',
               marginBottom: '20px',
               display: 'flex',
@@ -176,12 +172,12 @@ export default function LoginPage() {
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-strong)' }}>
-              Email, phone, or Skype
+              Email address
             </label>
             <input
               type="email"
               required
-              placeholder="name@srmap.edu.in or personal email"
+              placeholder="name@srmap.edu.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="fluent-input"
@@ -226,7 +222,7 @@ export default function LoginPage() {
           {mode === 'reset' && (
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-strong)' }}>
-                New Password (Min 8 chars)
+                New password (min. 8 characters)
               </label>
               <input
                 type="password"
@@ -243,7 +239,7 @@ export default function LoginPage() {
           {mode === 'reset' && (
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-strong)' }}>
-                Confirm New Password
+                Confirm new password
               </label>
               <input
                 type="password"
@@ -279,31 +275,44 @@ export default function LoginPage() {
                 padding: 0,
               }}
             >
-              <ArrowLeft size={13} /> Back to Sign in
+              <ArrowLeft size={13} /> Back to sign in
             </button>
           )}
 
-          {/* Buttons Row */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-            <button
-              type="submit"
-              disabled={loading}
-              className="fluent-btn fluent-btn-primary"
-              style={{
-                padding: '9px 28px',
-                fontSize: '14px',
-                fontWeight: 600,
-                borderRadius: '4px',
-                backgroundColor: 'var(--brand)',
-              }}
-            >
-              {loading
-                ? 'Processing...'
-                : mode === 'signin'
-                ? 'Sign in'
-                : 'Submit Request'}
-            </button>
-          </div>
+          {/* Full-width sign-in button (Microsoft login pattern) */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="fluent-btn fluent-btn-primary"
+            style={{
+              width: '100%',
+              padding: '10px 24px',
+              fontSize: '14px',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--brand)',
+              marginTop: '4px',
+            }}
+          >
+            {loading
+              ? 'Processing...'
+              : mode === 'signin'
+              ? 'Sign in'
+              : 'Submit request'}
+          </button>
+
+          {/* "No account? Contact admin" link */}
+          {mode === 'signin' && (
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', margin: '4px 0 0 0' }}>
+              No account?{' '}
+              <a
+                href="mailto:msc.community@srmap.edu.in"
+                style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: 600 }}
+              >
+                Contact your administrator
+              </a>
+            </p>
+          )}
         </form>
       </div>
 
@@ -313,20 +322,22 @@ export default function LoginPage() {
           marginTop: '28px',
           display: 'flex',
           gap: '16px',
-          fontSize: '11.5px',
+          fontSize: '11px',
           color: 'var(--text-muted)',
           flexWrap: 'wrap',
           justifyContent: 'center',
         }}
       >
-        <span>Microsoft Student Community &bull; SRM AP Chapter &apos;26</span>
-        <span>&bull;</span>
         <Link href="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-          Mission &amp; Manifesto
+          Terms of use
         </Link>
-        <span>&bull;</span>
+        <span>|</span>
+        <Link href="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
+          Privacy
+        </Link>
+        <span>|</span>
         <Link href="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-          Return to Portal
+          Return to portal
         </Link>
       </div>
     </div>

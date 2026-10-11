@@ -58,8 +58,8 @@ async function resolveLanding(supabase: Awaited<ReturnType<typeof createClient>>
  * Signs a user in, server-side.
  *
  * This replaces the previous client-side `supabase.auth.signInWithPassword`
- * call, which meant credentials were handed to the browser and — because it
- * never passed through `/api/*` — bypassed every rate limit in the app.
+ * call, which meant credentials were handed to the browser and, because it
+ * never passed through `/api/*`, bypassed every rate limit in the app.
  */
 export async function login(formData: FormData): Promise<AuthActionState> {
   const email = String(formData.get('email') || '')

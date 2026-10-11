@@ -100,9 +100,13 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
   };
 
   // Close mobile drawer on route navigation
+  const sidebarNavRef = React.useRef<HTMLDivElement>(null);
   useEffect(() => {
     setMobileDrawerOpen(false);
     setUserDropdownOpen(false);
+    if (sidebarNavRef.current) {
+      sidebarNavRef.current.scrollTop = 0;
+    }
   }, [pathname]);
 
   // Lock body scroll when mobile drawer is open
@@ -531,17 +535,27 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
             borderRight: '1px solid var(--border)',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between',
             transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             position: 'sticky',
             top: '50px',
             height: 'calc(100vh - 50px)',
-            overflowY: 'auto',
-            overflowX: 'hidden',
+            overflow: 'hidden',
+            zIndex: 50,
           }}
         >
-          {/* Navigation Links Grouped */}
-          <div style={{ padding: '12px 6px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Navigation Links Grouped (Scrollable Container) */}
+          <div
+            ref={sidebarNavRef}
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              padding: '10px 6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
             {ADMIN_GROUPS.map((group) => (
               <div key={group.groupName}>
                 {!sidebarCollapsed && (
@@ -552,7 +566,7 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
                       textTransform: 'uppercase',
                       letterSpacing: '0.06em',
                       color: 'var(--text-muted)',
-                      padding: '4px 12px 6px 12px',
+                      padding: '3px 10px 5px 10px',
                     }}
                   >
                     {group.groupName}
@@ -570,8 +584,8 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '12px',
-                          padding: sidebarCollapsed ? '10px 0' : '9px 12px',
+                          gap: '10px',
+                          padding: sidebarCollapsed ? '8px 0' : '7px 10px',
                           justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                           borderRadius: '6px',
                           textDecoration: 'none',
@@ -632,14 +646,16 @@ export default function AdminShell({ children, userEmail, userRole }: AdminShell
             ))}
           </div>
 
-          {/* Sidebar Footer: Collapse Toggle on Desktop */}
+          {/* Sidebar Footer: Collapse Toggle on Desktop (Always Pinned at Bottom) */}
           <div
             style={{
-              padding: '12px 6px',
+              padding: '8px 10px 18px 10px',
               borderTop: '1px solid var(--border)',
+              background: 'var(--surface)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: sidebarCollapsed ? 'center' : 'flex-end',
+              flexShrink: 0,
             }}
           >
             <button

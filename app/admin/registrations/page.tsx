@@ -14,20 +14,27 @@ import {
   FileText,
   X,
   CreditCard,
+  Users,
 } from 'lucide-react';
-import Papa from 'papaparse';
+// Papa is dynamically imported on demand for optimal bundle size
+import { QRCodeSVG } from 'qrcode.react';
 
 interface RegistrationRecord {
   id: string;
+  ticket_id?: string;
+  role?: string;
   lead_name: string;
   lead_email: string;
   reg_number: string;
   phone: string;
+  branch?: string;
   college: string;
   event_title: string;
   status: 'confirmed' | 'pending_payment' | 'waitlisted' | 'cancelled';
   checked_in: boolean;
   team_name?: string;
+  team_id?: string;
+  team_size?: number;
   created_at: string;
 }
 
@@ -49,15 +56,20 @@ export default function AdminRegistrationsPage() {
       if (!error && data) {
         const mapped: RegistrationRecord[] = data.map((r: any) => ({
           id: r.id,
+          ticket_id: r.form_data?.ticket_id || r.hash_payload || r.id,
+          role: r.form_data?.role || r.team_data?.role || (r.team_data?.team_name ? 'Member' : 'Solo'),
           lead_name: r.form_data?.full_name || r.form_data?.name || r.lead_email.split('@')[0],
           lead_email: r.lead_email,
           reg_number: r.form_data?.registration_number || r.form_data?.reg_num || 'N/A',
           phone: r.form_data?.phone || 'N/A',
+          branch: r.form_data?.branch || 'N/A',
           college: r.form_data?.college || 'SRM University AP',
           event_title: r.events?.title || 'SYNORA',
           status: r.status,
           checked_in: r.checked_in,
           team_name: r.team_data?.team_name || '',
+          team_id: r.team_data?.team_id,
+          team_size: r.team_data?.team_size,
           created_at: r.created_at,
         }));
         setRegistrations(mapped);
@@ -88,6 +100,8 @@ export default function AdminRegistrationsPage() {
       r.lead_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.lead_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.reg_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.branch && r.branch.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (r.ticket_id && r.ticket_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (r.team_name && r.team_name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
@@ -102,32 +116,69 @@ export default function AdminRegistrationsPage() {
       return;
     }
 
-    const { error } = await supabase.from('registrations').insert({
-      event_id: firstEvent.id,
-      lead_email: manualEmail,
-      status: 'confirmed',
-      checked_in: true,
-      form_data: {
-        full_name: manualName,
-        registration_number: manualRegNum,
-        phone: manualPhone,
-        college: manualCollege,
-      },
-    });
+    try {
+      const res = await fetch('/api/admin/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: firstEvent.id,
+          lead_email: manualEmail,
+          status: 'confirmed',
+          checked_in: true,
+          full_name: manualName,
+          registration_number: manualRegNum,
+          phone: manualPhone,
+          college: manualCollege,
+        }),
+      });
 
-    if (!error) {
-      await fetchRegistrations();
-      setIsManualModalOpen(false);
-      setManualName('');
-      setManualEmail('');
-      setManualRegNum('');
-      setManualPhone('');
-    } else {
-      alert('Failed to register: ' + error.message);
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        await fetchRegistrations();
+        setIsManualModalOpen(false);
+        setManualName('');
+        setManualEmail('');
+        setManualRegNum('');
+        setManualPhone('');
+      } else {
+        alert('Failed to register: ' + (data.error || 'Server error'));
+      }
+    } catch (err: any) {
+      alert('Network error while registering: ' + err.message);
     }
   };
 
-  // CSV Import via PapaParse
+  // Robust ISO Date Parser that gracefully handles DD/MM/YYYY, DD-MM-YYYY, timestamps, etc.
+  const safeParseISO = (raw?: string): string => {
+    if (!raw || typeof raw !== 'string' || !raw.trim()) return new Date().toISOString();
+    const trimmed = raw.trim();
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d.toISOString();
+
+    // Try parsing DD/MM/YYYY or DD-MM-YYYY
+    const m = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(.*)$/);
+    if (m) {
+      const day = parseInt(m[1], 10);
+      const month = parseInt(m[2], 10) - 1;
+      const year = parseInt(m[3], 10);
+      const time = m[4].trim();
+      let hours = 0, mins = 0, secs = 0;
+      if (time) {
+        const tm = time.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+        if (tm) {
+          hours = parseInt(tm[1], 10);
+          mins = parseInt(tm[2], 10);
+          if (tm[3]) secs = parseInt(tm[3], 10);
+        }
+      }
+      const c = new Date(Date.UTC(year, month, day, hours, mins, secs));
+      if (!isNaN(c.getTime())) return c.toISOString();
+    }
+    return new Date().toISOString();
+  };
+
+  // CSV Import supporting 11-column format & smart team differentiation
   const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -138,51 +189,153 @@ export default function AdminRegistrationsPage() {
       return;
     }
 
+    const Papa = (await import('papaparse')).default;
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         const rows = results.data as any[];
-        const toInsert = rows.map((row, i) => ({
-          event_id: firstEvent.id,
-          lead_email: row.Email || row.email || `imported-${Date.now()}-${i}@srmap.edu.in`,
-          status: 'confirmed',
-          checked_in: false,
-          form_data: {
-            full_name: row.Name || row.name || 'Imported Participant',
-            registration_number: row.RegNum || row.reg_num || 'AP0000000000',
-            phone: row.Phone || row.phone || '',
-            college: row.College || row.college || 'SRM University AP',
-          },
-          team_data: (row.Team || row.team) ? { team_name: row.Team || row.team } : null,
-        }));
+
+        const getField = (row: any, ...keys: string[]): string => {
+          for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+              return String(row[k]).trim();
+            }
+            const found = Object.keys(row).find((rk) => rk.trim().toLowerCase() === k.toLowerCase());
+            if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== '') {
+              return String(row[found]).trim();
+            }
+          }
+          return '';
+        };
+
+        // Track distinct team instances
+        let currentTeamKey = '';
+        let currentTeamInstanceId = '';
+        let currentTeamMemberCount = 0;
+        let currentTeamExpectedSize = 0;
+        let teamCounter = 0;
+
+        const toInsert = rows.map((row, i) => {
+          const ticketId = getField(row, 'Ticket ID', 'ticket_id', 'TicketId', 'ticket');
+          const role = getField(row, 'Role', 'role', 'team_role');
+          const name = getField(row, 'Name', 'name', 'full_name', 'FullName') || 'Imported Participant';
+          const email = getField(row, 'Email', 'email', 'lead_email') || `imported-${Date.now()}-${i}@srmap.edu.in`;
+          const regNum = getField(row, 'Reg Num', 'reg_num', 'RegNum', 'Registration Number', 'reg_number') || 'AP0000000000';
+          const mobile = getField(row, 'Mobile', 'mobile', 'Phone', 'phone');
+          const branch = getField(row, 'Branch', 'branch', 'Department', 'dept');
+          const rawTeam = getField(row, 'Team Name', 'team_name', 'Team', 'team');
+          const rawTeamSize = getField(row, 'Team Size', 'team_size', 'teamSize');
+          const parsedTeamSize = parseInt(rawTeamSize, 10);
+          const teamSize = !isNaN(parsedTeamSize) && parsedTeamSize > 0 ? parsedTeamSize : undefined;
+          const status = (getField(row, 'Status', 'status') || 'confirmed').toLowerCase();
+          const regDate = getField(row, 'Registration Date', 'registration_date', 'Registered At', 'Date');
+          const parsedCreatedAt = safeParseISO(regDate);
+
+          const isSolo = !rawTeam || ['individual', 'solo', '-', 'n/a', 'none'].includes(rawTeam.toLowerCase());
+
+          let teamData: any = null;
+
+          if (!isSolo) {
+            const isLeader = role.toLowerCase().includes('lead') || role.toLowerCase() === 'leader';
+            const teamNameChanged = rawTeam !== currentTeamKey;
+            const reachedCapacity = currentTeamExpectedSize > 0 && currentTeamMemberCount >= currentTeamExpectedSize;
+            const reachedDefaultMax = currentTeamMemberCount >= 5;
+
+            // Start new team instance if:
+            // - First team
+            // - Team name changed
+            // - Explicit leader role encountered (even if team name matches an earlier team!)
+            // - Reached declared team size or default max 5
+            if (
+              !currentTeamInstanceId ||
+              teamNameChanged ||
+              isLeader ||
+              reachedCapacity ||
+              (reachedDefaultMax && !currentTeamExpectedSize)
+            ) {
+              teamCounter++;
+              currentTeamKey = rawTeam;
+              currentTeamInstanceId = `team_${firstEvent.id.slice(0, 8)}_${rawTeam.toLowerCase().replace(/[^a-z0-9]/g, '_')}_inst${teamCounter}`;
+              currentTeamMemberCount = 0;
+              currentTeamExpectedSize = teamSize || 0;
+            }
+
+            currentTeamMemberCount++;
+
+            teamData = {
+              team_name: rawTeam,
+              team_id: currentTeamInstanceId,
+              team_size: teamSize || currentTeamExpectedSize || undefined,
+              role: role || (currentTeamMemberCount === 1 ? 'Leader' : 'Member'),
+            };
+          } else {
+            currentTeamKey = '';
+            currentTeamInstanceId = '';
+            currentTeamMemberCount = 0;
+            currentTeamExpectedSize = 0;
+          }
+
+          return {
+            event_id: firstEvent.id,
+            lead_email: email.toLowerCase().trim(),
+            status: ['confirmed', 'waitlisted', 'cancelled', 'pending_payment'].includes(status) ? status : 'confirmed',
+            checked_in: false,
+            form_data: {
+              full_name: name,
+              registration_number: regNum,
+              phone: mobile,
+              branch: branch,
+              college: getField(row, 'College', 'college') || 'SRM University AP',
+              ticket_id: ticketId,
+              role: role || (teamData ? teamData.role : 'Solo'),
+              registration_date: parsedCreatedAt,
+            },
+            team_data: teamData,
+            created_at: parsedCreatedAt,
+          };
+        });
 
         if (toInsert.length > 0) {
-          const { error } = await supabase.from('registrations').insert(toInsert);
-          if (error) {
-            alert('Failed to import into database: ' + error.message);
-          } else {
-            await fetchRegistrations();
+          try {
+            const res = await fetch('/api/admin/registrations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ batch: toInsert }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+              alert('Failed to import into database: ' + (data.error || 'Server error'));
+            } else {
+              alert(`Successfully imported ${data.count || toInsert.length} registrations!`);
+              await fetchRegistrations();
+            }
+          } catch (err: any) {
+            alert('Failed to import into database: ' + err.message);
           }
         }
       },
     });
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
+  // Export to CSV following the 11-column format
+  const handleExportCSV = async () => {
+    const Papa = (await import('papaparse')).default;
     const csv = Papa.unparse(
-      registrations.map((r) => ({
+      filteredRegistrations.map((r) => ({
+        'Ticket ID': r.ticket_id || r.id,
+        Role: r.role || (r.team_name ? 'Member' : 'Solo'),
         Name: r.lead_name,
         Email: r.lead_email,
-        RegistrationNumber: r.reg_number,
-        Phone: r.phone,
-        College: r.college,
-        Event: r.event_title,
-        Status: r.status,
-        CheckedIn: r.checked_in ? 'YES' : 'NO',
-        Team: r.team_name || 'Individual',
-        RegisteredAt: r.created_at,
+        'Reg Num': r.reg_number,
+        Mobile: r.phone,
+        Branch: r.branch || 'N/A',
+        'Team Name': r.team_name || 'Individual',
+        'Team Size': r.team_size ? String(r.team_size) : (r.team_name ? 'Team' : '1'),
+        Status: r.status.toUpperCase(),
+        'Registration Date': r.created_at,
       }))
     );
 
@@ -194,6 +347,47 @@ export default function AdminRegistrationsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Download Sample Template (.csv)
+  const handleDownloadTemplate = async () => {
+    const Papa = (await import('papaparse')).default;
+    const sampleHeaders = [
+      {
+        'Ticket ID': 'SYN-1001',
+        Role: 'Leader',
+        Name: 'Aarav Sharma',
+        Email: 'aarav_sharma@srmap.edu.in',
+        'Reg Num': 'AP26110010001',
+        Mobile: '9876543210',
+        Branch: 'CSE',
+        'Team Name': 'Code Titans',
+        'Team Size': '4',
+        Status: 'confirmed',
+        'Registration Date': new Date().toISOString().slice(0, 10),
+      },
+      {
+        'Ticket ID': 'SYN-1002',
+        Role: 'Member',
+        Name: 'Diya Patel',
+        Email: 'diya_patel@srmap.edu.in',
+        'Reg Num': 'AP26110010002',
+        Mobile: '9876543211',
+        Branch: 'CSE',
+        'Team Name': 'Code Titans',
+        'Team Size': '4',
+        Status: 'confirmed',
+        'Registration Date': new Date().toISOString().slice(0, 10),
+      },
+    ];
+    const csvString = Papa.unparse(sampleHeaders);
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `msc-registrations-template.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // Live Excel (.xlsx) export via API route /api/admin/export?format=xlsx
@@ -232,6 +426,15 @@ export default function AdminRegistrationsPage() {
           </label>
 
           <button
+            onClick={handleDownloadTemplate}
+            className="fluent-btn fluent-btn-secondary"
+            style={{ fontSize: '13px' }}
+            title="Download standard 11-column CSV template"
+          >
+            <Download size={14} /> Sample CSV
+          </button>
+
+          <button
             onClick={handleExportCSV}
             className="fluent-btn fluent-btn-secondary"
             style={{ fontSize: '13px' }}
@@ -267,7 +470,7 @@ export default function AdminRegistrationsPage() {
           <Search size={16} color="var(--text-muted)" />
           <input
             type="text"
-            placeholder="Search by attendee name, email, reg number, or team..."
+            placeholder="Search by attendee name, email, reg number, branch, or team..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="fluent-input"
@@ -305,7 +508,7 @@ export default function AdminRegistrationsPage() {
           <thead>
             <tr style={{ background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)', color: 'var(--text-strong)' }}>
               <th style={{ padding: '12px 16px' }}>Attendee</th>
-              <th style={{ padding: '12px 16px' }}>Reg Number &amp; College</th>
+              <th style={{ padding: '12px 16px' }}>Reg Number &amp; Branch</th>
               <th style={{ padding: '12px 16px' }}>Event</th>
               <th style={{ padding: '12px 16px' }}>Team</th>
               <th style={{ padding: '12px 16px' }}>Status</th>
@@ -317,12 +520,30 @@ export default function AdminRegistrationsPage() {
             {filteredRegistrations.map((r) => (
               <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '14px 16px' }}>
-                  <strong style={{ color: 'var(--text-strong)', display: 'block' }}>{r.lead_name}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ color: 'var(--text-strong)' }}>{r.lead_name}</strong>
+                    {r.role && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          background: r.role.toLowerCase().includes('lead') ? 'rgba(0,103,184,0.1)' : 'var(--bg-soft)',
+                          color: r.role.toLowerCase().includes('lead') ? 'var(--primary)' : 'var(--text-muted)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {r.role}
+                      </span>
+                    )}
+                  </div>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.lead_email}</span>
                 </td>
                 <td style={{ padding: '14px 16px' }}>
                   <div style={{ color: 'var(--text-strong)' }}>{r.reg_number}</div>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.college}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {r.branch && r.branch !== 'N/A' ? `${r.branch} • ` : ''}{r.college}
+                  </span>
                 </td>
                 <td style={{ padding: '14px 16px' }}>{r.event_title}</td>
                 <td style={{ padding: '14px 16px' }}>{r.team_name || 'Individual'}</td>
@@ -411,55 +632,126 @@ export default function AdminRegistrationsPage() {
             <div
               id="printable-badge"
               style={{
-                border: '2px solid #0067b8',
-                borderRadius: '6px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
                 padding: '24px',
                 background: '#ffffff',
                 textAlign: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
                 marginBottom: '20px',
+                fontFamily: 'Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif',
               }}
             >
-              <div style={{ borderBottom: '2px solid #dceef8', paddingBottom: '10px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '11px', color: '#0067b8', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>
-                  MICROSOFT STUDENT COMMUNITY
-                </span>
-                <div style={{ fontSize: '12px', color: '#616161' }}>SRM University AP &bull; Chapter &apos;26</div>
-              </div>
-
+              {/* Official MSC Ribbon Header */}
               <div
                 style={{
-                  width: '72px',
-                  height: '72px',
-                  borderRadius: '50%',
-                  background: '#0067b8',
+                  background: 'linear-gradient(135deg, #0067b8 0%, #004c87 100%)',
+                  borderRadius: '6px',
+                  padding: '12px 14px',
                   color: '#ffffff',
-                  fontSize: '28px',
-                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 12px',
+                  gap: '12px',
+                  marginBottom: '16px',
+                  boxShadow: '0 2px 8px rgba(0, 103, 184, 0.25)',
                 }}
               >
-                {selectedBadge.lead_name.charAt(0)}
+                <img
+                  src="https://lkbwunzswqbnoygxtilm.supabase.co/storage/v1/object/public/webpage/MSC%20Logo.png"
+                  alt="MSC Logo"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    objectFit: 'contain',
+                    background: '#ffffff',
+                    borderRadius: '4px',
+                    padding: '3px',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', opacity: 0.9, fontWeight: 700 }}>
+                    Official Admission Pass &bull; Chapter &apos;26
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', lineHeight: 1.2 }}>
+                    Microsoft Student Community
+                  </div>
+                  <div style={{ fontSize: '11px', opacity: 0.9, marginTop: '2px' }}>
+                    SRM University-AP &bull; {selectedBadge.event_title}
+                  </div>
+                </div>
               </div>
 
-              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#17253d', margin: '0 0 4px 0' }}>
+              {/* Attendee Name */}
+              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
                 {selectedBadge.lead_name}
               </h2>
-              <span style={{ fontSize: '13px', color: '#0067b8', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                {selectedBadge.team_name ? `Team: ${selectedBadge.team_name}` : 'Individual Participant'}
-              </span>
-
-              <div style={{ background: '#f5f5f5', padding: '10px', borderRadius: '4px', fontSize: '12px', margin: '14px 0' }}>
-                <div><strong>Reg:</strong> {selectedBadge.reg_number}</div>
-                <div><strong>College:</strong> {selectedBadge.college}</div>
+              <div style={{ fontSize: '12px', color: '#475569', fontWeight: 500, marginBottom: '10px' }}>
+                {selectedBadge.reg_number} {selectedBadge.branch && selectedBadge.branch !== 'N/A' ? `• ${selectedBadge.branch}` : ''} &bull; {selectedBadge.college}
               </div>
 
-              <span style={{ fontSize: '11px', color: '#616161', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {selectedBadge.event_title}
-              </span>
+              {/* Team Pill */}
+              {selectedBadge.team_name && selectedBadge.team_name.toLowerCase() !== 'individual' && selectedBadge.team_name.toLowerCase() !== 'solo' ? (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    color: '#0369a1',
+                    padding: '3px 12px',
+                    borderRadius: '16px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    marginBottom: '14px',
+                  }}
+                >
+                  <Users size={12} />
+                  <span>Team: {selectedBadge.team_name}</span>
+                  {selectedBadge.role && (
+                    <span style={{ background: '#0284c7', color: '#ffffff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px', fontWeight: 700 }}>
+                      {selectedBadge.role}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    color: '#475569',
+                    padding: '3px 12px',
+                    borderRadius: '16px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    marginBottom: '14px',
+                  }}
+                >
+                  <span>Individual Delegate</span>
+                </div>
+              )}
+
+              {/* Scannable Turnstile QR Code */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                <div style={{ padding: '10px', background: '#ffffff', border: '2px solid #0067b8', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0, 103, 184, 0.08)' }}>
+                  <QRCodeSVG
+                    value={typeof window !== 'undefined' ? `${window.location.origin}/admin/checkin/${selectedBadge.ticket_id || selectedBadge.id}` : `https://msc-srmap.in/admin/checkin/${selectedBadge.id}`}
+                    size={140}
+                    level="H"
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '10px', fontFamily: 'monospace', color: '#64748b', wordBreak: 'break-all', marginBottom: '4px' }}>
+                TOKEN: {selectedBadge.ticket_id || selectedBadge.id}
+              </div>
+              <div style={{ fontSize: '10px', color: '#0067b8', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+                OFFICIAL TURNSTILE ENTRY PASS &bull; SCAN FOR ADMISSION
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>

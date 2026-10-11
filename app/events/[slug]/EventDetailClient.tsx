@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
-import { toPng } from 'html-to-image';
+// html-to-image dynamically loaded on download
 import {
   Calendar,
   MapPin,
@@ -21,6 +21,8 @@ import {
   Shield,
   CreditCard,
   UserPlus,
+  Lock,
+  CalendarCheck,
 } from 'lucide-react';
 import { EventItem } from '@/lib/data/mock-fallback';
 
@@ -40,6 +42,53 @@ interface OpenTeam {
   members_count: number;
 }
 
+const DEFAULT_CERTIFICATE_TEMPLATE = `<div style="width: 860px; height: 580px; padding: 48px 40px; background: #ffffff; border: 12px solid #0067b8; box-sizing: border-box; text-align: center; position: relative; font-family: 'Segoe UI', system-ui, sans-serif; color: #242424; margin: 0 auto; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+  <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px;">
+    <div style="display: grid; grid-template-columns: repeat(2, 7px); grid-template-rows: repeat(2, 7px); gap: 2px;">
+      <div style="background: #f25022;"></div>
+      <div style="background: #7fba00;"></div>
+      <div style="background: #00a4ef;"></div>
+      <div style="background: #ffb900;"></div>
+    </div>
+    <span style="color: #0067b8; font-size: 13px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;">
+      Microsoft Student Community &bull; SRM University-AP
+    </span>
+  </div>
+
+  <h1 style="color: #0067b8; font-size: 34px; font-weight: 700; letter-spacing: -0.01em; margin: 8px 0 16px 0;">
+    CERTIFICATE OF PARTICIPATION
+  </h1>
+
+  <p style="color: #616161; font-size: 14px; margin: 0 0 14px 0; text-transform: uppercase; letter-spacing: 1px;">
+    This is proudly presented to
+  </p>
+
+  <h2 style="color: #242424; font-size: 32px; font-weight: 700; margin: 0 0 20px 0; border-bottom: 2px solid #0067b8; display: inline-block; padding: 0 24px 6px 24px;">
+    {{NAME}}
+  </h2>
+
+  <p style="color: #424242; font-size: 15px; max-width: 680px; margin: 0 auto 24px auto; line-height: 1.6;">
+    for demonstrating technical excellence and active participation in <strong>{{EVENT_TITLE}}</strong> organized by Microsoft Student Community at <strong>{{COLLEGE_NAME}}</strong> on <strong>{{EVENT_DATE}}</strong>.
+  </p>
+
+  <div style="position: absolute; bottom: 36px; left: 48px; right: 48px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #e0e0e0; padding-top: 14px;">
+    <div style="text-align: left;">
+      <div style="font-size: 13px; font-weight: 700; color: #242424;">Dr. Murali Krishna Enduri</div>
+      <div style="font-size: 11px; color: #616161;">Faculty Advisor, MSC SRM-AP</div>
+    </div>
+
+    <div style="text-align: center;">
+      <div style="font-size: 10px; color: #8a8a8a; text-transform: uppercase; letter-spacing: 1px;">Ticket &bull; Verification Hash</div>
+      <div style="font-size: 12px; font-weight: 600; color: #0067b8; font-family: monospace;">{{TICKET_ID}}</div>
+    </div>
+
+    <div style="text-align: right;">
+      <div style="font-size: 13px; font-weight: 700; color: #242424;">Core Executive Board</div>
+      <div style="font-size: 11px; color: #616161;">Microsoft Student Community</div>
+    </div>
+  </div>
+</div>`;
+
 export default function EventDetailClient({
   event,
   initialInvite,
@@ -51,10 +100,27 @@ export default function EventDetailClient({
 }) {
   const router = useRouter();
 
+  const isCompleted =
+    event.status === 'completed' ||
+    Boolean(
+      event.date_end &&
+        !isNaN(new Date(event.date_end).getTime()) &&
+        new Date(event.date_end).getTime() < Date.now()
+    );
+
+  const isRegistrationClosed = isCompleted || event.registration_open === false;
+  const hasCertificates = Boolean(event.form_requirements?.provide_certificates);
+
   // 3-in-1 Portal Tabs
   const [activePortalTab, setActivePortalTab] = useState<'register' | 'lookup' | 'certificate'>(
-    (initialTab as any) || 'register'
+    initialTab === 'certificate' && hasCertificates ? 'certificate' : (initialTab as any) || 'register'
   );
+
+  useEffect(() => {
+    if (activePortalTab === 'certificate' && !hasCertificates) {
+      setActivePortalTab('register');
+    }
+  }, [activePortalTab, hasCertificates]);
 
   // Registration states
   const [isInternalStudent, setIsInternalStudent] = useState(true);
@@ -95,8 +161,9 @@ export default function EventDetailClient({
 
   // Certificate Tab states
   const [certQuery, setCertQuery] = useState('');
-  const [certParticipant, setCertParticipant] = useState<string | null>(null);
-  const [certCollege, setCertCollege] = useState<string>('SRM University AP');
+  const [certLoading, setCertLoading] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
+  const [verifiedParticipant, setVerifiedParticipant] = useState<any | null>(null);
   const [certDownloading, setCertDownloading] = useState(false);
   const certContainerRef = useRef<HTMLDivElement>(null);
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -131,6 +198,10 @@ export default function EventDetailClient({
   // Handle Register Form Submission
   const handleRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRegistrationClosed) {
+      setErrorMsg('Registrations are closed for this event.');
+      return;
+    }
     setSubmitting(true);
     setErrorMsg(null);
 
@@ -260,7 +331,7 @@ export default function EventDetailClient({
       const res = await fetch('/api/ticket/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: lookupQuery }),
+        body: JSON.stringify({ query: lookupQuery.trim() }),
       });
 
       const data = await res.json();
@@ -269,12 +340,13 @@ export default function EventDetailClient({
       if (data.tickets && data.tickets.length > 0) {
         setFoundTicket({
           hash_payload: data.tickets[0].hash_payload,
-          event_title: event.title,
-          event_date: event.date_start,
-          event_location: event.location,
-          lead_name: 'Verified Attendee',
-          lead_email: lookupQuery,
-          status: 'confirmed',
+          event_title: data.tickets[0].event_title || event.title,
+          event_date: data.tickets[0].date_start || event.date_start,
+          event_location: data.tickets[0].location || event.location,
+          lead_name: data.tickets[0].lead_name || 'Verified Attendee',
+          lead_email: data.tickets[0].lead_email || lookupQuery,
+          team_name: data.tickets[0].team_name,
+          status: data.tickets[0].status || 'confirmed',
           checked_in: false,
         });
       } else {
@@ -297,12 +369,36 @@ export default function EventDetailClient({
     }
   };
 
-  // Handle Certificate Lookup
-  const handleCertificateLookup = (e: React.FormEvent) => {
+  // Handle Real Participant Verification against Supabase
+  const handleCertificateLookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!certQuery) return;
-    setCertParticipant(certQuery.includes('@') ? certQuery.split('@')[0].replace('.', ' ').toUpperCase() : certQuery);
-    setCertCollege('SRM University AP');
+    if (!certQuery.trim()) return;
+    setCertLoading(true);
+    setCertError(null);
+    setVerifiedParticipant(null);
+
+    try {
+      const res = await fetch('/api/events/verify-certificate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: event.id,
+          slug: event.slug,
+          query: certQuery.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.verified) {
+        setCertError(data.error || 'No verified participant attendance record found.');
+        return;
+      }
+      setVerifiedParticipant(data.participant);
+    } catch (err: any) {
+      console.error('[Certificate lookup error]:', err);
+      setCertError('Network or verification error. Please try again.');
+    } finally {
+      setCertLoading(false);
+    }
   };
 
   // Download Certificate PNG
@@ -310,9 +406,10 @@ export default function EventDetailClient({
     if (!certContainerRef.current) return;
     setCertDownloading(true);
     try {
+      const { toPng } = await import('html-to-image');
       const dataUrl = await toPng(certContainerRef.current, { cacheBust: true, pixelRatio: 2 });
       const link = document.createElement('a');
-      link.download = `Certificate_${certParticipant}_${event.slug}.png`;
+      link.download = `Certificate_${(verifiedParticipant?.name || 'MSC').replace(/\s+/g, '_')}_${event.slug}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -329,8 +426,8 @@ export default function EventDetailClient({
       <div className="container">
         {/* Navigation Breadcrumb */}
         <div style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          <Link href="/events" style={{ color: 'var(--brand)' }}>
-            &larr; Back to Events Directory
+          <Link href="/events" style={{ color: 'var(--brand)', textDecoration: 'none' }}>
+            Events
           </Link>
           <span style={{ margin: '0 8px' }}>/</span>
           <span>{event.title}</span>
@@ -361,8 +458,29 @@ export default function EventDetailClient({
           <div style={{ padding: '36px' }}>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
               <span className="fluent-badge badge-info">{event.type}</span>
-              <span className={`fluent-badge ${event.status === 'upcoming' ? 'badge-success' : 'badge-warning'}`}>
-                {event.status === 'upcoming' ? 'Active / Upcoming' : 'Archived / Completed'}
+              <span
+                className="fluent-badge"
+                style={{
+                  background: isCompleted
+                    ? 'rgba(239, 68, 68, 0.1)'
+                    : isRegistrationClosed
+                    ? 'rgba(245, 158, 11, 0.1)'
+                    : 'rgba(16, 185, 129, 0.1)',
+                  color: isCompleted ? '#dc2626' : isRegistrationClosed ? '#d97706' : '#059669',
+                  border: `1px solid ${
+                    isCompleted
+                      ? 'rgba(239, 68, 68, 0.25)'
+                      : isRegistrationClosed
+                      ? 'rgba(245, 158, 11, 0.25)'
+                      : 'rgba(16, 185, 129, 0.25)'
+                  }`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: 600,
+                }}
+              >
+                {isCompleted ? 'Event Completed' : isRegistrationClosed ? 'Registration Closed' : 'Active / Upcoming'}
               </span>
               <span className="fluent-badge" style={{ background: 'var(--bg-soft)', color: 'var(--text-strong)' }}>
                 {isFree ? 'Free Entry' : `₹${event.form_requirements?.registration_fee || 0}`}
@@ -373,9 +491,32 @@ export default function EventDetailClient({
               {event.title}
             </h1>
 
-            <p style={{ fontSize: '16px', color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '820px', marginBottom: '28px' }}>
+            <p style={{ fontSize: '16px', color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '820px', marginBottom: '24px' }}>
               {event.description}
             </p>
+
+            {/* Prominent Admissions Notice if Closed */}
+            {isRegistrationClosed && (
+              <div
+                style={{
+                  background: isCompleted ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                  border: `1px solid ${isCompleted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '13px',
+                  color: isCompleted ? '#b91c1c' : '#b45309',
+                }}
+              >
+                <Lock size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Admissions Closed:</strong> Public registrations for this event are closed {isCompleted ? 'as this event has officially concluded' : 'at this time'}. Registered delegates can still view confirmed passes and claim participation certificates using the portal tabs below.
+                </span>
+              </div>
+            )}
 
             {/* Quick Metadata Strip */}
             <div
@@ -431,80 +572,83 @@ export default function EventDetailClient({
           </div>
         </div>
 
-        {/* 3-IN-1 PORTAL TABS */}
+        {/* FLUENT PIVOT TABS */}
         <div
           style={{
             display: 'flex',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
+            borderBottom: '1px solid var(--border)',
             marginBottom: '32px',
             overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
+            gap: '8px',
           }}
         >
           <button
             onClick={() => setActivePortalTab('register')}
             style={{
-              flex: 1,
-              minWidth: 'max-content',
-              whiteSpace: 'nowrap',
-              padding: '14px 20px',
-              fontSize: '14px',
-              fontWeight: 700,
-              cursor: 'pointer',
+              background: 'none',
               border: 'none',
-              background: activePortalTab === 'register' ? 'var(--brand)' : 'transparent',
-              color: activePortalTab === 'register' ? '#ffffff' : 'var(--text-body)',
+              borderBottom: activePortalTab === 'register' ? '2px solid var(--brand)' : '2px solid transparent',
+              padding: '10px 18px',
+              fontSize: '14px',
+              fontWeight: activePortalTab === 'register' ? 600 : 400,
+              cursor: 'pointer',
+              color: activePortalTab === 'register' ? 'var(--brand)' : 'var(--text-muted)',
               transition: 'all 0.15s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+              marginBottom: '-1px',
             }}
           >
-            1. REGISTER TAB
+            {isRegistrationClosed && <Lock size={13} />}
+            <span>{isRegistrationClosed ? 'Registration closed' : 'Register'}</span>
           </button>
           <button
             onClick={() => setActivePortalTab('lookup')}
             style={{
-              flex: 1,
-              minWidth: 'max-content',
-              whiteSpace: 'nowrap',
-              padding: '14px 20px',
-              fontSize: '14px',
-              fontWeight: 700,
-              cursor: 'pointer',
+              background: 'none',
               border: 'none',
-              borderLeft: '1px solid var(--border)',
-              borderRight: '1px solid var(--border)',
-              background: activePortalTab === 'lookup' ? 'var(--brand)' : 'transparent',
-              color: activePortalTab === 'lookup' ? '#ffffff' : 'var(--text-body)',
+              borderBottom: activePortalTab === 'lookup' ? '2px solid var(--brand)' : '2px solid transparent',
+              padding: '10px 18px',
+              fontSize: '14px',
+              fontWeight: activePortalTab === 'lookup' ? 600 : 400,
+              cursor: 'pointer',
+              color: activePortalTab === 'lookup' ? 'var(--brand)' : 'var(--text-muted)',
               transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              marginBottom: '-1px',
             }}
           >
-            2. CHECK TICKET / LOOKUP
+            My ticket
           </button>
-          <button
-            onClick={() => setActivePortalTab('certificate')}
-            style={{
-              flex: 1,
-              minWidth: 'max-content',
-              whiteSpace: 'nowrap',
-              padding: '14px 20px',
-              fontSize: '14px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              border: 'none',
-              background: activePortalTab === 'certificate' ? 'var(--brand)' : 'transparent',
-              color: activePortalTab === 'certificate' ? '#ffffff' : 'var(--text-body)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            3. CERTIFICATE TAB
-          </button>
+          {hasCertificates && (
+            <button
+              onClick={() => setActivePortalTab('certificate')}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: activePortalTab === 'certificate' ? '2px solid var(--brand)' : '2px solid transparent',
+                padding: '10px 18px',
+                fontSize: '14px',
+                fontWeight: activePortalTab === 'certificate' ? 600 : 400,
+                cursor: 'pointer',
+                color: activePortalTab === 'certificate' ? 'var(--brand)' : 'var(--text-muted)',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                marginBottom: '-1px',
+              }}
+            >
+              Certificate
+            </button>
+          )}
         </div>
 
-        {/* TAB 1: REGISTER */}
+        {/* TAB 1: REGISTER / CLOSED VIEW */}
         {activePortalTab === 'register' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '32px' }}>
-            {/* Registration Form */}
+            {/* Registration Card (Closed view or Active form) */}
             <div
               style={{
                 background: 'var(--surface)',
@@ -514,20 +658,161 @@ export default function EventDetailClient({
                 padding: 'clamp(20px, 4vw, 36px)',
               }}
             >
-              <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '8px' }}>
-                Event Registration
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-                Join this technical session. Free events confirm immediately; paid events proceed through secure Razorpay.
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
+                  Event Registration
+                </h2>
+                {isRegistrationClosed && (
+                  <span
+                    style={{
+                      background: isCompleted ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                      color: isCompleted ? '#dc2626' : '#d97706',
+                      border: `1px solid ${isCompleted ? 'rgba(239, 68, 68, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <Lock size={12} /> {isCompleted ? 'Event Completed' : 'Registration Closed'}
+                  </span>
+                )}
+              </div>
 
-              {errorMsg && (
-                <div style={{ padding: '12px', background: 'var(--danger-bg)', color: 'var(--danger)', borderRadius: 'var(--radius-sm)', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertCircle size={16} /> {errorMsg}
+              {isRegistrationClosed ? (
+                <div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
+                    {isCompleted
+                      ? 'This technical session has officially concluded. Public attendee registrations are no longer accepted.'
+                      : 'Public admissions for this session are currently closed.'}
+                  </p>
+
+                  <div
+                    style={{
+                      background: 'var(--bg-soft)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '32px 24px',
+                      textAlign: 'center',
+                      marginBottom: '24px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: isCompleted ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                        color: isCompleted ? '#dc2626' : '#d97706',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 16px auto',
+                      }}
+                    >
+                      <CalendarCheck size={28} />
+                    </div>
+
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong)', marginBottom: '8px' }}>
+                      {isCompleted ? 'Registrations Are Closed' : 'Admissions Currently Closed'}
+                    </h3>
+                    <p style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '480px', margin: '0 auto 24px auto' }}>
+                      {isCompleted
+                        ? `Registrations for "${event.title}" have concluded as the event has ended. Thank you to all participants, mentors, and partners who joined us!`
+                        : `Public registrations for "${event.title}" are closed. Please verify back later or check your registered pass below.`}
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '420px', margin: '0 auto' }}>
+                      <button
+                        type="button"
+                        onClick={() => setActivePortalTab('lookup')}
+                        className="fluent-btn fluent-btn-primary"
+                        style={{
+                          width: '100%',
+                          padding: '12px 18px',
+                          fontSize: '13.5px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <Search size={16} /> Look Up Registered Ticket / Pass
+                      </button>
+
+                      {event.form_requirements?.provide_certificates && (
+                        <button
+                          type="button"
+                          onClick={() => setActivePortalTab('certificate')}
+                          className="fluent-btn fluent-btn-secondary"
+                          style={{
+                            width: '100%',
+                            padding: '12px 18px',
+                            fontSize: '13.5px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <Award size={16} color="var(--brand)" /> Claim Participation Certificate
+                        </button>
+                      )}
+
+                      <Link
+                        href="/events"
+                        className="fluent-btn fluent-btn-secondary"
+                        style={{
+                          width: '100%',
+                          padding: '10px 18px',
+                          fontSize: '13px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        Explore Other Community Events <ArrowRight size={14} />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: 'rgba(0, 103, 184, 0.04)',
+                      border: '1px solid rgba(0, 103, 184, 0.15)',
+                      borderRadius: '6px',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}
+                  >
+                    <Shield size={20} color="var(--brand)" style={{ flexShrink: 0 }} />
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-body)', lineHeight: 1.5 }}>
+                      <strong>Need to verify previous registration?</strong> All confirmed tickets and check-in records remain permanently archived. Switch to the <strong>My ticket</strong> {hasCertificates ? 'or Certificate ' : ''}tab above.
+                    </div>
+                  </div>
                 </div>
-              )}
+              ) : (
+                <>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>
+                    Join this technical session. Free events confirm immediately; paid events proceed through secure Razorpay.
+                  </p>
 
-              <form onSubmit={handleRegistration} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {errorMsg && (
+                    <div style={{ padding: '12px', background: 'var(--danger-bg)', color: 'var(--danger)', borderRadius: 'var(--radius-sm)', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} /> {errorMsg}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleRegistration} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {/* Mode: Solo vs Team */}
                 {event.form_requirements?.allow_teams && (
                   <div>
@@ -814,49 +1099,72 @@ export default function EventDetailClient({
                     : `Proceed to Razorpay Checkout (₹${event.form_requirements?.registration_fee || 0})`}
                 </button>
               </form>
-            </div>
+            </>
+          )}
+        </div>
 
-            {/* Sidebar: Schedule, Speakers & Team Matchmaking */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Matchmaking Pool */}
-              {event.form_requirements?.allow_teams && (
-                <div className="fluent-card" style={{ padding: '24px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '8px' }}>
-                    Open Team Matchmaking
-                  </h3>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    Solo participant? Join an open squad with available slots.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {openTeams.map((t) => (
-                      <div
-                        key={t.id}
-                        style={{
-                          background: 'var(--bg-soft)',
-                          padding: '12px',
-                          borderRadius: 'var(--radius-sm)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div>
-                          <strong style={{ fontSize: '13px', display: 'block' }}>{t.team_name}</strong>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Lead: {t.leader_name} ({t.leader_branch})</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleJoinTeam(t)}
-                          className="fluent-btn fluent-btn-secondary"
-                          style={{ fontSize: '11px', padding: '4px 8px' }}
-                        >
-                          Join Team
-                        </button>
+        {/* Sidebar: Schedule, Speakers & Team Matchmaking */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Matchmaking Pool */}
+          {event.form_requirements?.allow_teams && (
+            <div className="fluent-card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
+                  Open Team Matchmaking
+                </h3>
+                {isRegistrationClosed && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      background: 'var(--bg-soft)',
+                      border: '1px solid var(--border)',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Closed
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                {isRegistrationClosed
+                  ? 'Team matchmaking is closed as event admissions have concluded.'
+                  : 'Solo participant? Join an open squad with available slots.'}
+              </p>
+              {!isRegistrationClosed && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {openTeams.map((t) => (
+                    <div
+                      key={t.id}
+                      style={{
+                        background: 'var(--bg-soft)',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '13px', display: 'block' }}>{t.team_name}</strong>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Lead: {t.leader_name} ({t.leader_branch})</span>
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => handleJoinTeam(t)}
+                        className="fluent-btn fluent-btn-secondary"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        Join Team
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
+          )}
 
               {/* Schedule Timeline */}
               {event.form_requirements?.agenda && (
@@ -923,18 +1231,48 @@ export default function EventDetailClient({
                   overflow: 'hidden',
                 }}
               >
-                <div style={{ background: '#0067b8', color: '#ffffff', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px' }}>MSC SRM AP PASS</span>
-                    <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', margin: 0 }}>{event.title}</h3>
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #0067b8 0%, #004c87 100%)',
+                    color: '#ffffff',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <img
+                      src="https://lkbwunzswqbnoygxtilm.supabase.co/storage/v1/object/public/webpage/MSC%20Logo.png"
+                      alt="MSC Logo"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        objectFit: 'contain',
+                        background: '#ffffff',
+                        borderRadius: '6px',
+                        padding: '3px',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div>
+                      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', opacity: 0.9, fontWeight: 700 }}>
+                        Official Admission Pass &bull; Chapter &apos;26
+                      </span>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: '2px 0 0 0' }}>
+                        Microsoft Student Community
+                      </h3>
+                      <div style={{ fontSize: '11px', opacity: 0.85 }}>SRM University-AP &bull; {event.title}</div>
+                    </div>
                   </div>
-                  <span style={{ background: '#0e7c41', color: '#ffffff', padding: '4px 8px', borderRadius: '2px', fontSize: '11px', fontWeight: 700 }}>
+                  <span style={{ background: '#0e7c41', color: '#ffffff', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
                     {foundTicket.status.toUpperCase()}
                   </span>
                 </div>
 
                 <div style={{ padding: '28px', textAlign: 'center' }}>
-                  <div style={{ display: 'inline-block', padding: '14px', background: '#ffffff', border: '1px solid var(--border)', borderRadius: '2px', marginBottom: '16px' }}>
+                  <div style={{ display: 'inline-block', padding: '14px', background: '#ffffff', border: '2px solid #0067b8', borderRadius: '8px', marginBottom: '16px', boxShadow: '0 4px 12px rgba(0, 103, 184, 0.08)' }}>
                     <QRCodeSVG
                       value={`${typeof window !== 'undefined' ? window.location.origin : ''}/admin/checkin/${foundTicket.hash_payload}`}
                       size={170}
@@ -961,82 +1299,165 @@ export default function EventDetailClient({
 
         {/* TAB 3: CERTIFICATE */}
         {activePortalTab === 'certificate' && (
-          <div style={{ maxWidth: '840px', margin: '0 auto' }}>
-            <div className="fluent-card" style={{ padding: '36px', marginBottom: '32px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <Award size={32} color="var(--brand)" style={{ margin: '0 auto 8px' }} />
-                <h2 style={{ fontSize: '22px', fontWeight: 600 }}>Certificate Verification &amp; Export</h2>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  Enter your registered participant email or registration number to generate your verifiable completion certificate.
+          <div style={{ maxWidth: '880px', margin: '0 auto' }}>
+            {!hasCertificates ? (
+              <div className="fluent-card" style={{ padding: '48px', textAlign: 'center' }}>
+                <Award size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '8px' }}>
+                  Certificates Not Issued
+                </h3>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto 20px auto', lineHeight: 1.6 }}>
+                  E-Certificates are closed or not issued for &quot;{event.title}&quot;. The organizers have designated this technical session as non-certificate accredited.
                 </p>
-              </div>
-
-              <form onSubmit={handleCertificateLookup} style={{ display: 'flex', gap: '10px' }}>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter email or reg number..."
-                  value={certQuery}
-                  onChange={(e) => setCertQuery(e.target.value)}
-                  className="fluent-input"
-                />
-                <button type="submit" className="fluent-btn fluent-btn-primary">
-                  Verify &amp; Preview
+                <button
+                  type="button"
+                  onClick={() => setActivePortalTab('register')}
+                  className="fluent-btn fluent-btn-secondary"
+                  style={{ fontSize: '13px' }}
+                >
+                  Back to Event Overview
                 </button>
-              </form>
-            </div>
-
-            {/* Live Certificate Sandbox Preview */}
-            {certParticipant && (
+              </div>
+            ) : (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)' }}>
-                    Live Certificate Preview
-                  </h3>
-                  <button
-                    onClick={downloadCertificatePng}
-                    disabled={certDownloading}
-                    className="fluent-btn fluent-btn-primary"
-                    style={{ gap: '6px' }}
-                  >
-                    <Download size={14} /> {certDownloading ? 'Rendering PNG...' : 'Download High-Res PNG'}
-                  </button>
+                <div className="fluent-card" style={{ padding: '36px', marginBottom: '32px' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                    <Award size={36} color="var(--brand)" style={{ margin: '0 auto 8px' }} />
+                    <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--text-strong)' }}>
+                      Participant Verification &amp; E-Certificate Issuance
+                    </h2>
+                    <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '520px', margin: '6px auto 0 auto', lineHeight: 1.5 }}>
+                      Enter your registered full name, university registration number (e.g. AP26...), or student email to verify attendance and unlock your accredited completion certificate.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCertificateLookup} style={{ display: 'flex', gap: '10px', maxWidth: '560px', margin: '0 auto' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter Full Name, Email or Reg No..."
+                      value={certQuery}
+                      onChange={(e) => setCertQuery(e.target.value)}
+                      className="fluent-input"
+                      style={{ flex: 1, height: '40px' }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={certLoading}
+                      className="fluent-btn fluent-btn-primary"
+                      style={{ height: '40px', padding: '0 20px', whiteSpace: 'nowrap' }}
+                    >
+                      {certLoading ? 'Verifying...' : 'Verify & Generate'}
+                    </button>
+                  </form>
+
+                  {/* Verification Error Notification */}
+                  {certError && (
+                    <div
+                      style={{
+                        marginTop: '20px',
+                        padding: '12px 16px',
+                        background: 'var(--danger-bg)',
+                        border: '1px solid rgba(197, 15, 31, 0.3)',
+                        borderRadius: '4px',
+                        color: 'var(--danger)',
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                      }}
+                    >
+                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                      <span>{certError}</span>
+                    </div>
+                  )}
+
+                  {/* Verified Attendee Success Banner */}
+                  {verifiedParticipant && (
+                    <div
+                      style={{
+                        marginTop: '20px',
+                        padding: '14px 18px',
+                        background: 'var(--success-bg)',
+                        border: '1px solid rgba(14, 122, 13, 0.3)',
+                        borderRadius: '4px',
+                        color: 'var(--success)',
+                        fontSize: '13px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
+                        <div>
+                          <strong>Verified Participant:</strong> {verifiedParticipant.name}
+                          <div style={{ fontSize: '11.5px', opacity: 0.9 }}>
+                            Reg: {verifiedParticipant.registration_number} &bull; {verifiedParticipant.college} &bull; {verifiedParticipant.role}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          background: 'rgba(14, 122, 13, 0.2)',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {verifiedParticipant.status}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ overflowX: 'auto', paddingBottom: '20px' }}>
-                  <div
-                    ref={certContainerRef}
-                    style={{
-                      width: '780px',
-                      padding: '40px',
-                      background: '#fffdfb',
-                      border: '10px solid #0067b8',
-                      boxShadow: 'var(--shadow-lift)',
-                      fontFamily: 'var(--font-family)',
-                      textAlign: 'center',
-                      position: 'relative',
-                    }}
-                  >
-                    <span style={{ fontSize: '12px', color: '#0067b8', letterSpacing: '3px', textTransform: 'uppercase', fontWeight: 700 }}>
-                      MICROSOFT STUDENT COMMUNITY &bull; SRM UNIVERSITY AP
-                    </span>
-                    <h1 style={{ fontSize: '32px', color: '#17253d', margin: '14px 0 16px 0', fontWeight: 700 }}>
-                      CERTIFICATE OF PARTICIPATION
-                    </h1>
-                    <p style={{ fontSize: '14px', color: '#616161', margin: 0 }}>This certificate is proudly awarded to</p>
-                    <h2 style={{ fontSize: '28px', color: '#0067b8', margin: '12px 0 16px 0', borderBottom: '2px solid #0067b8', display: 'inline-block', paddingBottom: '4px' }}>
-                      {certParticipant}
-                    </h2>
-                    <p style={{ fontSize: '15px', color: '#17253d', maxWidth: '640px', margin: '0 auto', lineHeight: 1.6 }}>
-                      for actively participating and building production-grade solutions during <strong>{event.title}</strong> at <strong>{certCollege}</strong> on <strong>{new Date(event.date_start).toLocaleDateString()}</strong>.
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '10px', borderTop: '1px solid #737373', fontSize: '11px', color: '#17253d' }}>
-                      <div><strong>Dr. Murali Krishna Enduri</strong><br />Faculty Advisor</div>
-                      <div style={{ color: '#737373' }}>Official Chapter &apos;26 Institutional Verification</div>
-                      <div><strong>Dr. CV Tomy</strong><br />Faculty Advisor</div>
+                {/* Verified Certificate Container */}
+                {verifiedParticipant && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
+                          Verified Certificate Document
+                        </h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                          Official accredited digital credentials rendered from verified institutional records.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={downloadCertificatePng}
+                        disabled={certDownloading}
+                        className="fluent-btn fluent-btn-primary"
+                        style={{ gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+                      >
+                        <Download size={16} /> {certDownloading ? 'Rendering High-Res PNG...' : 'Download Verified Certificate (.PNG)'}
+                      </button>
+                    </div>
+
+                    <div style={{ overflowX: 'auto', paddingBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        ref={certContainerRef}
+                        style={{ display: 'inline-block' }}
+                        dangerouslySetInnerHTML={{
+                          __html: (event.certificate_html || DEFAULT_CERTIFICATE_TEMPLATE)
+                            .replace(/\{\{NAME\}\}/g, verifiedParticipant.name)
+                            .replace(/\{\{EVENT_TITLE\}\}/g, event.title)
+                            .replace(/\{\{COLLEGE_NAME\}\}/g, verifiedParticipant.college || 'SRM University-AP')
+                            .replace(/\{\{EVENT_DATE\}\}/g, verifiedParticipant.event_date || new Date(event.date_start).toLocaleDateString())
+                            .replace(/\{\{TICKET_ID\}\}/g, verifiedParticipant.ticket_id || verifiedParticipant.hash_payload || 'MSC-VERIFIED')
+                            .replace(/\{\{REG_NUMBER\}\}/g, verifiedParticipant.registration_number || 'N/A')
+                            .replace(/\{\{ROLE\}\}/g, verifiedParticipant.role || 'Participant')
+                            .replace(/\{\{ISSUED_DATE\}\}/g, verifiedParticipant.issued_date || new Date().toLocaleDateString()),
+                        }}
+                      />
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>

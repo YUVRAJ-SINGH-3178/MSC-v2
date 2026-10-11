@@ -4,8 +4,18 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FALLBACK_EVENTS, EventItem } from '@/lib/data/mock-fallback';
 import { createClient } from '@/lib/supabase/client';
-import QRScanner from '@/components/QRScanner';
+import dynamic from 'next/dynamic';
 import { ArrowLeft, Calendar } from 'lucide-react';
+
+const QRScanner = dynamic(() => import('@/components/QRScanner'), {
+  ssr: false,
+  loading: () => (
+    <div className="fluent-card" style={{ padding: '48px', textAlign: 'center' }}>
+      <div className="spinner" style={{ margin: '0 auto 16px' }} />
+      <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>Initializing camera scanner module...</p>
+    </div>
+  ),
+});
 
 export default function AdminGlobalScannerPage() {
   const supabase = createClient();

@@ -1,36 +1,46 @@
 import React from 'react';
 import Link from 'next/link';
-import { Award, Compass, Users, MapPin, CheckCircle, Sparkles, Layers, Cpu, Rocket, ArrowRight, ShieldCheck } from 'lucide-react';
+import type { Metadata } from 'next';
+import { Users, Cpu, Rocket, ArrowRight, ShieldCheck } from 'lucide-react';
 
-export const metadata = {
-  title: 'About & Provenance | Microsoft Student Community | SRM University-AP',
+export const metadata: Metadata = {
+  title: 'About Us | Microsoft Student Community | SRM University-AP',
   description:
-    'The official provenance, charter, and founding history of Microsoft Student Community at SRM University AP. Founded by Jayanth Ramakrishnan, guided by Dr. Murali Krishna Enduri Sir and Dr. CV Tomy Sir.',
+    'The official charter, story, and community pillars of Microsoft Student Community at SRM University-AP. Founded by Jayanth Ramakrishnan, guided by Dr. Murali Krishna Enduri Sir and Dr. CV Tomy Sir.',
+  alternates: {
+    canonical: '/about',
+  },
+  openGraph: {
+    title: 'About Us | Microsoft Student Community | SRM University-AP',
+    description:
+      'The official charter, story, and community pillars of Microsoft Student Community at SRM University-AP.',
+    url: '/about',
+  },
 };
 
 export default function AboutPage() {
   const manifestoPillars = [
     {
       num: '01',
-      title: 'The Vision (Aspiration)',
-      statement: 'To position ourselves as a student focused community and create visionaries of tomorrow.',
+      title: 'Our vision',
+      statement: 'To position ourselves as a student-focused community and empower the visionaries of tomorrow.',
       colorAccent: '#0067b8',
       tags: ['Impact', 'Innovation', 'Scale'],
       icon: Rocket,
     },
     {
       num: '02',
-      title: 'The Mission (Purpose)',
+      title: 'Our mission',
       statement:
-        'To provide a student led and student focused platform for interaction and ideas. Committed towards bringing diversity in people and domains.',
+        'To provide a student-led platform for interaction and ideas, bringing diversity across people and engineering domains.',
       colorAccent: '#107c10',
       tags: ['Interaction', 'Ideas', 'Diversity'],
       icon: Users,
     },
     {
       num: '03',
-      title: 'Core Technologies (Stack)',
-      statement: 'We utilize industry-standard ecosystems to architect scalable student applications.',
+      title: 'Core technologies',
+      statement: 'We utilize enterprise-grade ecosystems to build, scale, and ship real-world student applications.',
       colorAccent: '#d83b01',
       tags: ['Azure Cloud', 'Open Source', 'AI Integration', 'Web Systems', 'Data Pipelines'],
       icon: Cpu,
@@ -40,21 +50,21 @@ export default function AboutPage() {
   const journeyPhases = [
     {
       phase: 'Phase I',
-      title: 'Foundations (The Past)',
-      desc: "The community has successfully led major events providing student focused opportunities with events like HackMSC and Zero Jam which have formed a major part of the community's legacy and strengthen our vision for tomorrow.",
-      badge: 'Legacy Milestone',
+      title: 'Foundations',
+      desc: "The community established student-first technical opportunities through flagship hackathons and workshops that built our campus foundation.",
+      badge: 'Milestone',
     },
     {
       phase: 'Phase II',
-      title: 'Execution (The Present)',
-      desc: 'The community continues in the tradition of the star events while bringing new ideas to diversify student outreach to different courses and specializations. Thus fulfilling the student first commitment.',
-      badge: 'Active Chapter',
+      title: 'Execution',
+      desc: 'Expanding outreach across academic departments with hands-on bootcamps, Azure certifications, and industry speaker sessions.',
+      badge: 'Active chapter',
     },
     {
       phase: 'Phase III',
-      title: 'Evolution (The Future)',
-      desc: 'The community aims to be the forerunner in student led communities in providing students with opportunities while being transparent in its objective of working for all students and providing support.',
-      badge: 'Strategic Vision',
+      title: 'Evolution',
+      desc: 'Scaling as a leading student technical community by supporting student builders, open research, and high-impact regional initiatives.',
+      badge: 'Strategic vision',
     },
   ];
 
@@ -62,7 +72,7 @@ export default function AboutPage() {
     <div style={{ background: 'var(--bg)', minHeight: '100vh', padding: '60px 0 100px 0' }}>
       <div className="container">
         {/* Microsoft Header & Eyebrow */}
-        <div style={{ marginBottom: '44px', maxWidth: '880px' }}>
+        <div style={{ marginBottom: '44px', maxWidth: '840px' }}>
           <div
             style={{
               display: 'inline-flex',
@@ -72,7 +82,7 @@ export default function AboutPage() {
               background: 'var(--bg-soft)',
               border: '1px solid var(--border)',
               borderRadius: '4px',
-              marginBottom: '18px',
+              marginBottom: '16px',
               fontSize: '12px',
               fontWeight: 600,
               letterSpacing: '0.04em',
@@ -93,17 +103,17 @@ export default function AboutPage() {
               <div style={{ background: '#00a4ef', borderRadius: '1px' }} />
               <div style={{ background: '#ffb900', borderRadius: '1px' }} />
             </div>
-            <span>MICROSOFT STUDENT COMMUNITY &bull; CHARTER &amp; PROVENANCE</span>
+            <span>MICROSOFT STUDENT COMMUNITY &bull; ABOUT US</span>
           </div>
 
           <h1
             style={{
-              fontSize: 'clamp(32px, 5vw, 48px)',
+              fontSize: 'clamp(32px, 5vw, 44px)',
               fontWeight: 600,
               color: 'var(--text-strong)',
               lineHeight: 1.15,
               letterSpacing: '-0.02em',
-              marginBottom: '16px',
+              marginBottom: '14px',
             }}
           >
             Empowering every student to achieve more with technology.
@@ -111,40 +121,40 @@ export default function AboutPage() {
 
           <p
             style={{
-              fontSize: 'clamp(16px, 2vw, 18px)',
+              fontSize: 'clamp(15px, 2vw, 17px)',
               color: 'var(--text-muted)',
               lineHeight: 1.6,
-              maxWidth: '760px',
+              maxWidth: '720px',
             }}
           >
-            The official student-led engineering guild at SRM University-AP. We bridge the gap between academic theory and enterprise cloud architectures through hands-on hackathons, research mentorship, and open collaboration.
+            The official student-led engineering community at SRM University-AP. We bridge the gap between academic study and enterprise cloud architectures through hands-on hackathons, technical workshops, and open collaboration.
           </p>
         </div>
 
-        {/* Visual Artwork Feature Container (Microsoft Fluent Frame) */}
+        {/* Visual Artwork Container */}
         <div
           style={{
-            borderRadius: '8px',
+            borderRadius: '4px',
             overflow: 'hidden',
             border: '1px solid var(--border)',
             background: 'var(--surface)',
             boxShadow: 'var(--shadow-rest)',
-            marginBottom: '64px',
+            marginBottom: '56px',
           }}
         >
           <img
             src="/about_visual.jpg"
-            alt="Microsoft Fluent Design and Innovation at SRM University AP"
+            alt="Microsoft Student Community at SRM University AP"
             style={{
               width: '100%',
-              maxHeight: '440px',
+              maxHeight: '420px',
               objectFit: 'cover',
               display: 'block',
             }}
           />
           <div
             style={{
-              padding: '14px 24px',
+              padding: '12px 20px',
               background: 'var(--bg-soft)',
               borderTop: '1px solid var(--border)',
               display: 'flex',
@@ -166,42 +176,42 @@ export default function AboutPage() {
           </div>
         </div>
 
-        {/* Community Genesis & Provenance Block */}
-        <section style={{ marginBottom: '72px' }}>
+        {/* Our Story Block */}
+        <section style={{ marginBottom: '64px' }}>
           <div
             className="fluent-card"
             style={{
-              padding: 'clamp(28px, 5vw, 44px)',
-              borderRadius: '8px',
+              padding: 'clamp(24px, 4vw, 36px)',
+              borderRadius: '4px',
               border: '1px solid var(--border)',
               boxShadow: 'var(--shadow-rest)',
             }}
           >
-            <div style={{ marginBottom: '32px', maxWidth: '780px' }}>
+            <div style={{ marginBottom: '28px', maxWidth: '760px' }}>
               <span
                 style={{
                   fontSize: '12px',
                   fontWeight: 600,
                   color: 'var(--brand)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.06em',
                 }}
               >
-                Institutional Roots
+                Institutional roots
               </span>
               <h2
                 style={{
-                  fontSize: 'clamp(24px, 3.5vw, 30px)',
+                  fontSize: 'clamp(22px, 3.5vw, 28px)',
                   fontWeight: 600,
                   color: 'var(--text-strong)',
-                  marginTop: '6px',
+                  marginTop: '4px',
                   letterSpacing: '-0.015em',
                 }}
               >
-                Origin Story &amp; Provenance
+                Our story
               </h2>
-              <p style={{ fontSize: '15px', color: 'var(--text-body)', marginTop: '12px', lineHeight: 1.65 }}>
-                Founded with a mission to create a high-impact technical home for aspiring engineers at SRM University-AP, Microsoft Student Community (MSC) began as a focused group exploring Azure Cloud, distributed architecture, and software design. Guided by departmental leadership, MSC quickly expanded into one of the largest builder collectives on campus, organizing flagship university hackathons, open-source initiatives, and developer conferences.
+              <p style={{ fontSize: '14px', color: 'var(--text-body)', marginTop: '10px', lineHeight: 1.65 }}>
+                Founded with a mission to create a high-impact technical home for aspiring engineers at SRM University-AP, Microsoft Student Community (MSC) began as a focused group exploring Azure Cloud, distributed architecture, and software design. Guided by departmental faculty leadership, MSC quickly expanded into one of the largest builder collectives on campus, organizing university hackathons, open-source initiatives, and developer conferences.
               </p>
             </div>
 
@@ -209,30 +219,36 @@ export default function AboutPage() {
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-                gap: '24px',
+                gap: '20px',
                 borderTop: '1px solid var(--border)',
-                paddingTop: '28px',
+                paddingTop: '24px',
               }}
             >
               <div
                 style={{
                   padding: '16px',
                   background: 'var(--bg-soft)',
-                  borderRadius: '6px',
+                  borderRadius: '4px',
                   border: '1px solid var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: '140px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--brand)' }} />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Founder &amp; Catalyzer
-                  </span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand)' }} />
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Founder
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: '2px 0 4px 0' }}>
+                    Jayanth Ramakrishnan
+                  </h3>
                 </div>
-                <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', margin: '4px 0 4px 0' }}>
-                  Jayanth Ramakrishnan
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  Visionary student founder who structured the chapter and laid the cornerstone for campus-wide developer engagement.
+                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Student founder who structured the chapter and laid the foundation for campus-wide developer engagement.
                 </p>
               </div>
 
@@ -240,21 +256,27 @@ export default function AboutPage() {
                 style={{
                   padding: '16px',
                   background: 'var(--bg-soft)',
-                  borderRadius: '6px',
+                  borderRadius: '4px',
                   border: '1px solid var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: '140px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#107c10' }} />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Faculty Mentors
-                  </span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#107c10' }} />
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Faculty mentors
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: '2px 0 4px 0' }}>
+                    Dr. Murali Krishna Enduri &amp; Dr. CV Tomy
+                  </h3>
                 </div>
-                <h3 style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text-strong)', margin: '4px 0 4px 0' }}>
-                  Dr. Murali Krishna Enduri &amp; Dr. CV Tomy
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  Esteemed faculty professors providing institutional governance, research guidance, and university lab resources.
+                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Faculty professors providing institutional governance, research guidance, and university lab resources.
                 </p>
               </div>
 
@@ -262,62 +284,68 @@ export default function AboutPage() {
                 style={{
                   padding: '16px',
                   background: 'var(--bg-soft)',
-                  borderRadius: '6px',
+                  borderRadius: '4px',
                   border: '1px solid var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: '140px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d83b01' }} />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    University Chapter
-                  </span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d83b01' }} />
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Campus chapter
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-strong)', margin: '2px 0 4px 0' }}>
+                    SRM University-AP
+                  </h3>
                 </div>
-                <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', margin: '4px 0 4px 0' }}>
-                  SRM University-AP
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  Amaravati, Andhra Pradesh &bull; Dept. of Computer Science &amp; Engineering &bull; Coordinates: 16.46&deg;N 80.50&deg;E
+                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Amaravati, Andhra Pradesh &bull; Dept. of Computer Science &amp; Engineering.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* The Manifesto: 3 Foundational Pillars */}
-        <section style={{ marginBottom: '80px' }}>
-          <div style={{ marginBottom: '36px' }}>
+        {/* Guiding Principles */}
+        <section style={{ marginBottom: '64px' }}>
+          <div style={{ marginBottom: '28px' }}>
             <span
               style={{
                 fontSize: '12px',
                 fontWeight: 600,
                 color: 'var(--brand)',
                 textTransform: 'uppercase',
-                letterSpacing: '0.08em',
+                letterSpacing: '0.06em',
               }}
             >
-              Guiding Principles
+              Principles
             </span>
             <h2
               style={{
-                fontSize: 'clamp(24px, 3.5vw, 32px)',
+                fontSize: 'clamp(22px, 3.5vw, 28px)',
                 fontWeight: 600,
                 color: 'var(--text-strong)',
                 marginTop: '4px',
                 letterSpacing: '-0.015em',
               }}
             >
-              The 3 Foundational Pillars
+              Our guiding principles
             </h2>
-            <p style={{ fontSize: '15px', color: 'var(--text-muted)', maxWidth: '680px', marginTop: '8px' }}>
-              Modeled after enterprise engineering practices, our charter defines how we innovate, collaborate, and support student developers.
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '640px', marginTop: '6px' }}>
+              Modeled after Microsoft engineering practices, our principles define how we innovate, collaborate, and support student developers.
             </p>
           </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
-              gap: '24px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+              gap: '20px',
             }}
           >
             {manifestoPillars.map((pillar) => {
@@ -327,11 +355,11 @@ export default function AboutPage() {
                   key={pillar.num}
                   className="fluent-card"
                   style={{
-                    padding: '32px 28px',
+                    padding: '28px 24px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     border: '1px solid var(--border)',
                     borderTop: `3px solid ${pillar.colorAccent}`,
                     boxShadow: 'var(--shadow-rest)',
@@ -343,31 +371,30 @@ export default function AboutPage() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '20px',
+                        marginBottom: '16px',
                       }}
                     >
                       <div
                         style={{
-                          width: '42px',
-                          height: '42px',
+                          width: '38px',
+                          height: '38px',
                           background: 'var(--bg-soft)',
                           color: pillar.colorAccent,
-                          borderRadius: '6px',
+                          borderRadius: '4px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '1px solid var(--border)',
                         }}
                       >
-                        <Icon size={20} />
+                        <Icon size={18} />
                       </div>
                       <span
                         style={{
-                          fontSize: '24px',
+                          fontSize: '18px',
                           fontWeight: 700,
-                          color: 'var(--border-strong)',
-                          opacity: 0.35,
-                          fontFamily: 'monospace',
+                          color: 'var(--text-muted)',
+                          opacity: 0.4,
                         }}
                       >
                         {pillar.num}
@@ -376,10 +403,10 @@ export default function AboutPage() {
 
                     <h3
                       style={{
-                        fontSize: '19px',
+                        fontSize: '17px',
                         fontWeight: 600,
                         color: 'var(--text-strong)',
-                        marginBottom: '12px',
+                        marginBottom: '10px',
                       }}
                     >
                       {pillar.title}
@@ -387,10 +414,10 @@ export default function AboutPage() {
 
                     <p
                       style={{
-                        fontSize: '14px',
+                        fontSize: '13.5px',
                         color: 'var(--text-muted)',
-                        lineHeight: 1.65,
-                        marginBottom: '28px',
+                        lineHeight: 1.6,
+                        marginBottom: '24px',
                       }}
                     >
                       &ldquo;{pillar.statement}&rdquo;
@@ -403,7 +430,7 @@ export default function AboutPage() {
                       flexWrap: 'wrap',
                       gap: '6px',
                       borderTop: '1px solid var(--border)',
-                      paddingTop: '16px',
+                      paddingTop: '14px',
                     }}
                   >
                     {pillar.tags.map((t) => (
@@ -411,10 +438,10 @@ export default function AboutPage() {
                         key={t}
                         style={{
                           fontSize: '11px',
-                          padding: '3px 8px',
+                          padding: '2px 8px',
                           background: 'var(--bg-soft)',
                           border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                          borderRadius: '3px',
                           color: 'var(--text-body)',
                           fontWeight: 500,
                         }}
@@ -429,33 +456,33 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* The Journey: Chronicle Timeline */}
-        <section style={{ marginBottom: '80px' }}>
-          <div style={{ marginBottom: '36px' }}>
+        {/* Chronicle Timeline */}
+        <section style={{ marginBottom: '64px' }}>
+          <div style={{ marginBottom: '28px' }}>
             <span
               style={{
                 fontSize: '12px',
                 fontWeight: 600,
                 color: 'var(--brand)',
                 textTransform: 'uppercase',
-                letterSpacing: '0.08em',
+                letterSpacing: '0.06em',
               }}
             >
-              Chronicle Timeline
+              Timeline
             </span>
             <h2
               style={{
-                fontSize: 'clamp(24px, 3.5vw, 32px)',
+                fontSize: 'clamp(22px, 3.5vw, 28px)',
                 fontWeight: 600,
                 color: 'var(--text-strong)',
                 marginTop: '4px',
                 letterSpacing: '-0.015em',
               }}
             >
-              The Chapter Evolution
+              Our journey
             </h2>
-            <p style={{ fontSize: '15px', color: 'var(--text-muted)', maxWidth: '640px', marginTop: '8px' }}>
-              Tracing our journey from early technical meetups to large-scale university hackathons and industry collaborations.
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '620px', marginTop: '6px' }}>
+              Tracing our journey from early technical meetups to large-scale hackathons and industry collaborations.
             </p>
           </div>
 
@@ -463,10 +490,10 @@ export default function AboutPage() {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '24px',
+              gap: '18px',
               borderLeft: '2px solid var(--border)',
-              paddingLeft: '28px',
-              marginLeft: '12px',
+              paddingLeft: '24px',
+              marginLeft: '8px',
             }}
           >
             {journeyPhases.map((phase, idx) => (
@@ -476,8 +503,8 @@ export default function AboutPage() {
                   position: 'relative',
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  padding: '24px',
+                  borderRadius: '4px',
+                  padding: '20px 24px',
                   boxShadow: 'var(--shadow-rest)',
                 }}
               >
@@ -485,23 +512,23 @@ export default function AboutPage() {
                 <div
                   style={{
                     position: 'absolute',
-                    left: '-36px',
-                    top: '24px',
-                    width: '14px',
-                    height: '14px',
+                    left: '-29px',
+                    top: '22px',
+                    width: '8px',
+                    height: '8px',
                     borderRadius: '50%',
                     background: 'var(--brand)',
-                    border: '3px solid var(--bg)',
+                    boxShadow: '0 0 0 3px var(--bg)',
                   }}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                   <span
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
                       color: 'var(--brand)',
                       textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
+                      letterSpacing: '0.04em',
                     }}
                   >
                     {phase.phase}
@@ -511,8 +538,8 @@ export default function AboutPage() {
                       fontSize: '11px',
                       background: 'var(--bg-soft)',
                       border: '1px solid var(--border)',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
+                      padding: '1px 6px',
+                      borderRadius: '3px',
                       color: 'var(--text-muted)',
                       fontWeight: 500,
                     }}
@@ -522,15 +549,15 @@ export default function AboutPage() {
                 </div>
                 <h3
                   style={{
-                    fontSize: '19px',
+                    fontSize: '17px',
                     fontWeight: 600,
                     color: 'var(--text-strong)',
-                    marginBottom: '8px',
+                    marginBottom: '6px',
                   }}
                 >
                   {phase.title}
                 </h3>
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '780px' }}>
+                <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '740px', margin: 0 }}>
                   {phase.desc}
                 </p>
               </div>
@@ -538,62 +565,58 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Direct Action Ribbon */}
+        {/* CTA Banner */}
         <section>
           <div
             style={{
-              padding: 'clamp(28px, 4vw, 40px)',
+              padding: 'clamp(24px, 4vw, 36px)',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
+              borderRadius: '4px',
               boxShadow: 'var(--shadow-rest)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: '24px',
+              gap: '20px',
             }}
           >
             <div>
-              <h3 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '6px' }}>
-                Join the MSC Developer Community
+              <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
+                Join the developer community
               </h3>
-              <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '580px' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '540px', margin: 0 }}>
                 Participate in upcoming Azure bootcamps, compete in campus hackathons, or collaborate on open-source projects.
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <Link
                 href="/events"
                 className="fluent-btn fluent-btn-primary"
                 style={{
-                  padding: '10px 22px',
-                  fontSize: '14px',
-                  fontWeight: 600,
+                  padding: '8px 18px',
+                  fontSize: '13.5px',
                   borderRadius: '4px',
-                  backgroundColor: 'var(--brand)',
-                  color: '#ffffff',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '6px',
                 }}
               >
-                Explore Events Directory <ArrowRight size={14} />
+                See upcoming events <ArrowRight size={14} />
               </Link>
               <Link
                 href="/team"
                 className="fluent-btn fluent-btn-secondary"
                 style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  fontWeight: 600,
+                  padding: '8px 16px',
+                  fontSize: '13.5px',
                   borderRadius: '4px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '6px',
                 }}
               >
-                Meet The Leadership
+                Meet the team
               </Link>
             </div>
           </div>

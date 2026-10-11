@@ -72,7 +72,7 @@ export type AdminRole = 'admin';
  * Guard for privileged routes.
  *
  * These routes use the service-role client, which bypasses RLS, so identity and
- * permission MUST be verified here first — the middleware only gates the `/admin`
+ * permission MUST be verified here first: the middleware only gates the `/admin`
  * page prefix and never matches `/api/admin/*`.
  */
 export async function requireAdmin() {
@@ -160,7 +160,7 @@ export function isUuid(value: unknown): value is string {
  * The old project logged these; this project had no equivalent.
  */
 export function auditLog(action: string, actorId: string, detail: string) {
-  console.log(`[AUDIT] ${action} by ${actorId} — ${detail}`);
+  console.log(`[AUDIT] ${action} by ${actorId} | ${detail}`);
 }
 
 export type SecurityEvent =
@@ -193,7 +193,7 @@ export interface SecurityEventFields {
  * Emits a single-line structured security event.
  *
  * These are the signals Check 03 asks for: authentication failures and
- * throttling. They are intentionally NOT audit records — they are emitted on
+ * throttling. They are intentionally NOT audit records; they are emitted on
  * every rejected request, so they should be shipped to a separate log sink (and
  * alerted on) rather than mixed into the `[AUDIT]` stream of successful
  * privileged actions.

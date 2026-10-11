@@ -13,12 +13,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: [
       'lucide-react',
-      'html-to-image',
       'framer-motion',
-      'papaparse',
       '@supabase/supabase-js',
       'qrcode.react',
-      'exceljs'
     ],
   },
   images: {
@@ -29,6 +26,43 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+  },
+  cleanDistDir: true,
+  webpack: (config, { dev }) => {
+    // Fast source maps in development for faster compilation
+    if (dev) {
+      config.devtool = 'eval-cheap-module-source-map';
+    }
+
+    // Suppress Webpack cache serialization warnings (PackFileCacheStrategy)
+    config.infrastructureLogging = {
+      ...(config.infrastructureLogging || {}),
+      level: 'error',
+    };
+
+    return config;
+  },
+  async headers() {
+    return [
+      {
+        source: '/:all*(svg|jpg|jpeg|png|webp|avif|ico|woff2)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
   },
 };
 

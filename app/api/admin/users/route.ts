@@ -190,12 +190,27 @@ export async function DELETE(req: Request) {
     );
   }
 
+  // Account deletion strictly requires admin role (core_members cannot delete accounts)
+  if (auth.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Forbidden: Only administrators can delete accounts' },
+      { status: 403 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('user_id');
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    if (userId === auth.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden: You cannot delete your own administrative account' },
+        { status: 400 }
+      );
     }
 
     const supabase = getAdminClient();

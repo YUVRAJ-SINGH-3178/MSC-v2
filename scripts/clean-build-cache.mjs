@@ -13,8 +13,8 @@
  *   Cannot find module './vendor-chunks/@supabase.js'
  *     at webpack-runtime.js
  *
- * The on-disk artifacts look fine — the mismatch is only in the running
- * process — so restarting the dev server is not always enough once
+ * The on-disk artifacts look fine: the mismatch is only in the running
+ * process, so restarting the dev server is not always enough once
  * `webpack-runtime.js` has been rewritten underneath it.
  *
  * This is a known recurring failure in this repo (the older project carried the

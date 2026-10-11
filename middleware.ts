@@ -4,15 +4,28 @@ import { createServerClient } from '@supabase/ssr';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.headers.get('origin');
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://mscsrmap.xyz,https://www.mscsrmap.xyz,http://localhost:3000,http://127.0.0.1:3000')
     .split(',')
     .map((o) => o.trim().replace(/\/$/, ''));
 
+  const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+  const requestOrigin = request.nextUrl.origin;
+
+  // Determine whether this request's origin is authorized
+  const isSameOrigin = !origin || origin === requestOrigin || (host ? origin.replace(/^https?:\/\//, '') === host : false);
+  const isLocalDev = Boolean(
+    origin && (
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('http://127.0.0.1') ||
+      /^https?:\/\/(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(origin)
+    )
+  );
+  const isExplicitlyAllowed = Boolean(origin && allowedOrigins.includes(origin));
+  const isAllowed = isSameOrigin || isLocalDev || isExplicitlyAllowed;
+
   // 1. CORS Preflight & Origin Verification for /api/ routes
   if (pathname.startsWith('/api/')) {
-    // Check origin if present (cross-origin request)
     if (origin) {
-      const isAllowed = allowedOrigins.includes(origin);
       if (!isAllowed) {
         return new NextResponse(JSON.stringify({ error: 'CORS origin not allowed' }), {
           status: 403,
@@ -78,34 +91,53 @@ export async function middleware(request: NextRequest) {
 
   response.headers.set('Content-Security-Policy', cspHeader);
 
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && isAllowed) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Vary', 'Origin');
   }
 
-  // 3. Supabase session refresh only (no route gating - handled client-side)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key';
+  // 3. Supabase session refresh only if auth cookies exist and Supabase URL is configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({
-          request,
-        });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
-      },
-    },
-  });
+  const hasAuthCookies = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith('sb-') || c.name.includes('auth-token') || c.name.includes('supabase'));
 
-  // Refresh session to keep auth cookies up to date
-  await supabase.auth.getSession();
+  if (
+    supabaseUrl &&
+    !supabaseUrl.includes('placeholder') &&
+    supabaseAnonKey &&
+    hasAuthCookies
+  ) {
+    try {
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            response = NextResponse.next({
+              request,
+            });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
+          },
+        },
+      });
+
+      // Protect with a 1.5s timeout so offline or slow network never blocks requests
+      await Promise.race([
+        supabase.auth.getUser(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1500)),
+      ]);
+    } catch {
+      // Gracefully ignore fetch/auth errors so public pages load immediately
+    }
+  }
 
   return response;
 }
@@ -119,6 +151,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - custom-events (static microsites)
      */
-    '/((?!_next/static|_next/image|favicon.ico|custom-events).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2)$|custom-events).*)',
   ],
 };

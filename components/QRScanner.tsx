@@ -482,6 +482,37 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
     }
   };
 
+  const checkInSingleMember = async (memberId: string | undefined, memberEmail: string, hashPayload: string) => {
+    try {
+      const res = await fetch('/api/admin/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          hash_payload: hashPayload,
+          member_id: memberId && !memberId.includes('-m-') ? memberId : undefined,
+          member_email: memberEmail,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeamModalData((prev) => {
+          if (!prev) return null;
+          const updated = (prev.teamMembers || []).map((m: any) => {
+            if (m.id === memberId || m.email === memberEmail) {
+              return { ...m, checked_in: true };
+            }
+            return m;
+          });
+          return { ...prev, teamMembers: updated };
+        });
+        playFeedback('success');
+      }
+    } catch (err) {
+      console.error('Member checkin error:', err);
+    }
+  };
+
   const onScanSuccess = async (decodedText: string) => {
     // pause()/resume() both throw unless the scanner is in the matching state,
     // so check before calling: a second callback can land before the pause
@@ -757,7 +788,7 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
         >
           <div
             style={{
-              maxWidth: '480px',
+              maxWidth: '520px',
               width: '100%',
               background: 'var(--surface)',
               borderRadius: 'var(--radius-sm)',
@@ -765,46 +796,111 @@ export default function QRScanner({ eventId, eventTitle }: QRScannerProps) {
               boxShadow: 'var(--shadow-lift)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
               <Users size={22} color="var(--brand)" />
               <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-strong)', margin: 0 }}>
-                Team Check-In Options
+                Team Turnstile Check-In
               </h3>
             </div>
 
-            <p style={{ fontSize: '14px', color: 'var(--text-body)', marginBottom: '16px' }}>
-              Scanned ticket belongs to team <strong>{teamModalData.teamName}</strong>. Choose check-in scope:
+            <p style={{ fontSize: '13px', color: 'var(--text-body)', marginBottom: '16px', lineHeight: 1.4 }}>
+              Scanned ticket belongs to team <strong>{teamModalData.teamName}</strong> ({teamModalData.teamMembers?.length || 'Multiple'} members). Choose your check-in action:
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
               <button
+                type="button"
                 onClick={() => {
                   processCheckin(teamModalData.hashPayload!, 'all');
                   setTeamModalData(null);
                 }}
                 className="fluent-btn fluent-btn-primary"
-                style={{ justifyContent: 'center', padding: '10px' }}
+                style={{ justifyContent: 'center', padding: '10px', fontSize: '13px', fontWeight: 600 }}
               >
                 <Users size={16} /> Check In Entire Team ({teamModalData.teamMembers?.length || 'All'} Members)
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   processCheckin(teamModalData.hashPayload!, 'lead_only');
                   setTeamModalData(null);
                 }}
                 className="fluent-btn fluent-btn-secondary"
-                style={{ justifyContent: 'center', padding: '10px' }}
+                style={{ justifyContent: 'center', padding: '9px', fontSize: '13px' }}
               >
-                <UserCheck size={16} /> Check In Team Leader Only ({teamModalData.name})
+                <UserCheck size={16} /> Check In Scanned Attendee Only ({teamModalData.name})
               </button>
             </div>
 
+            {/* Granular Individual Member Check-In Roster */}
+            {teamModalData.teamMembers && teamModalData.teamMembers.length > 0 && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-strong)', display: 'block', marginBottom: '8px' }}>
+                  Or Check In Members Individually:
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                  {teamModalData.teamMembers.map((member, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '6px 10px',
+                        background: member.checked_in ? 'rgba(16, 124, 65, 0.08)' : 'var(--bg-soft)',
+                        border: member.checked_in ? '1px solid rgba(16, 124, 65, 0.3)' : '1px solid var(--border)',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: 'var(--text-strong)' }}>{member.name}</strong>
+                        {member.reg_number && member.reg_number !== 'N/A' && (
+                          <span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '11px', fontFamily: 'monospace' }}>
+                            {member.reg_number}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => checkInSingleMember((member as any).id, member.email, teamModalData.hashPayload!)}
+                        disabled={member.checked_in}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '3px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: member.checked_in ? 'default' : 'pointer',
+                          border: member.checked_in ? '1px solid var(--success)' : '1px solid var(--brand)',
+                          background: member.checked_in ? 'var(--success-bg)' : 'var(--brand)',
+                          color: member.checked_in ? 'var(--success)' : '#ffffff',
+                        }}
+                      >
+                        {member.checked_in ? (
+                          <>
+                            <Check size={11} /> Checked In
+                          </>
+                        ) : (
+                          'Check In'
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
+                type="button"
                 onClick={() => setTeamModalData(null)}
                 className="fluent-btn fluent-btn-secondary"
-                style={{ fontSize: '12px', padding: '6px 12px' }}
+                style={{ fontSize: '12px', padding: '6px 14px' }}
               >
                 Dismiss
               </button>

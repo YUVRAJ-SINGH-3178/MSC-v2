@@ -5,8 +5,8 @@
  *
  * Two distinct problems are easy to conflate, so this reports them separately:
  *
- *   1. WORKING TREE  — a secret literal sitting in a tracked file right now.
- *   2. GIT HISTORY   — a secret that was removed from the working tree but is
+ *   1. WORKING TREE  : a secret literal sitting in a tracked file right now.
+ *   2. GIT HISTORY   : a secret that was removed from the working tree but is
  *                      still recoverable via `git show <sha>:<path>`.
  *
  * Removing a secret from the working tree does NOT remove it from history, so
@@ -138,7 +138,7 @@ function isObviousPlaceholder(value) {
 
 /**
  * Values the project has explicitly blessed (dev/CI fixtures). These are real
- * secret-shaped strings, so they are only suppressed outside .env.example —
+ * secret-shaped strings, so they are only suppressed outside .env.example:
  * shipping one of these in the template would propagate it to every developer.
  */
 function isAllowlistedFixture(value) {
@@ -337,7 +337,7 @@ if (!TREE_ONLY) {
     console.log(`    ${DIM}git filter-repo --invert-paths --path <file>${OFF}  ${DIM}or${OFF}`);
     console.log(`    ${DIM}bfg --delete-files <file>${OFF}`);
     console.log(`    ${DIM}then force-push and have everyone re-clone.${OFF}`);
-    console.log(`    ${DIM}History rewrite changes every commit sha — do not skip the re-clone step.${OFF}\n`);
+    console.log(`    ${DIM}History rewrite changes every commit sha: do not skip the re-clone step.${OFF}\n`);
   }
 }
 
