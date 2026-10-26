@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "dev:webpack": "next dev"
+    "dev:turbo": "next dev --turbo"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
