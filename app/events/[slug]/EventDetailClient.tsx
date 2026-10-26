@@ -203,10 +203,11 @@ export default function EventDetailClient({
       lead_email: leadEmail,
       idempotency_key: idempotencyKey,
       form_data: {
+        full_name: leadName,
         is_internal: isInternalStudent,
-        college_name: isInternalStudent ? 'SRM University AP' : collegeName,
+        college: isInternalStudent ? 'SRM University AP' : collegeName,
         city: isInternalStudent ? 'Amaravati' : cityName,
-        phone_number: leadPhone,
+        phone: leadPhone,
         registration_number: leadRegNum,
         branch: leadBranch,
         year: leadYear,

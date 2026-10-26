@@ -25,6 +25,7 @@ async function getEventBySlug(slug: string): Promise<EventItem | null> {
       .from('events')
       .select('*')
       .or(filter)
+      .eq('is_published', true)
       .maybeSingle();
 
     const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -33,18 +34,21 @@ async function getEventBySlug(slug: string): Promise<EventItem | null> {
 
     const { data, error } = (await Promise.race([queryPromise, timeoutPromise])) as any;
 
-    if (!error && data) {
-      return data as EventItem;
+    if (!error) {
+      return data ? (data as EventItem) : null;
     }
   } catch {
-    // Falls back immediately to FALLBACK_EVENTS if offline or slow
+    // Fall back to local event data only when Supabase is unavailable or times out.
+    return (
+      FALLBACK_EVENTS.find(
+        (e) =>
+          e.is_published &&
+          (e.slug === slug || e.id === slug || (slug === 'synora' && e.slug === 'synora-26'))
+      ) || null
+    );
   }
 
-  return (
-    FALLBACK_EVENTS.find(
-      (e) => e.slug === slug || e.id === slug || (slug === 'synora' && e.slug === 'synora-26')
-    ) || null
-  );
+  return null;
 }
 
 export async function generateMetadata({ params }: EventPageProps) {
@@ -84,6 +88,11 @@ export async function generateMetadata({ params }: EventPageProps) {
 export default async function EventDetailPage({ params, searchParams }: EventPageProps) {
   const { slug } = await params;
   const { view, invite, tab } = await searchParams;
+  const event = await getEventBySlug(slug);
+
+  if (!event) {
+    notFound();
+  }
 
   // Custom Flagship Microsite Routing (Section 2.A)
   if ((slug === 'synora' || slug === 'synora-pitstop') && view !== 'portal') {
@@ -130,12 +139,6 @@ export default async function EventDetailPage({ params, searchParams }: EventPag
         />
       </div>
     );
-  }
-
-  const event = await getEventBySlug(slug);
-
-  if (!event) {
-    notFound();
   }
 
   const eventJsonLd = {

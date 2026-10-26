@@ -23,7 +23,8 @@ export async function GET() {
 
     // 3. Live Payments / Revenue query
     const { data: payments } = await supabase.from('payments').select('amount').eq('status', 'captured');
-    const revenueInRupees = payments?.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) || 0;
+    const revenueInPaise = payments?.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) || 0;
+    const revenueInRupees = revenueInPaise / 100;
 
     return noStoreJson({
       totalEvents,

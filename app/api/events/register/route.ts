@@ -7,7 +7,6 @@ import {
 import { checkRateLimit, getClientIP } from '@/lib/ratelimit';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { sendTicketEmail } from '@/lib/email';
-import { FALLBACK_EVENTS } from '@/lib/data/mock-fallback';
 import crypto from 'crypto';
 
 export async function POST(req: Request) {
@@ -41,11 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid idempotency key format.' }, { status: 400 });
     }
 
-    // 4. Check event and determine pricing
-    const matchingEvent = FALLBACK_EVENTS.find((e) => e.id === event_id) || FALLBACK_EVENTS[0];
-    const isPaid = matchingEvent.form_requirements.event_pricing === 'paid';
-
-    // 5. Application-level registration logic (old version style)
+    // 4. Application-level registration logic
     const supabase = getAdminClient();
 
     // Check if already registered
@@ -69,11 +64,13 @@ export async function POST(req: Request) {
     // Check event capacity & status
     const { data: event } = await supabase
       .from('events')
-      .select('id, status, registration_open, date_end, max_capacity, form_requirements')
+      .select('id, title, date_start, location, status, registration_open, date_end, max_capacity, form_requirements')
       .eq('id', event_id)
       .single();
 
     if (!event) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+
+    const isPaid = event.form_requirements?.event_pricing === 'paid';
 
     const isEventCompleted =
       event.status === 'completed' ||
@@ -103,17 +100,20 @@ export async function POST(req: Request) {
 
     // Build team data
     let teamData = null;
-    if (team_data?.teamName) {
+    const requestedTeamName = team_data?.team_name || team_data?.teamName;
+    const lookingForMembers = Boolean(team_data?.looking_for_members ?? team_data?.lookingForMembers);
+
+    if (requestedTeamName) {
       const { data: team, error: teamError } = await supabase
         .from('teams')
         .insert({
           event_id: event_id,
-          team_name: team_data.teamName,
+          team_name: requestedTeamName,
           leader_name: form_data?.full_name || '',
           leader_email: lead_email.toLowerCase().trim(),
           leader_year: form_data?.year || '',
           leader_branch: form_data?.branch || null,
-          looking_for_members: team_data.lookingForMembers || false,
+          looking_for_members: lookingForMembers,
         })
         .select('id')
         .single();
@@ -126,10 +126,11 @@ export async function POST(req: Request) {
 
       teamData = {
         team_id: teamId,
-        team_name: team_data.teamName,
+        team_name: requestedTeamName,
         members: (team_data.members || []).map((m: any) => ({
           fullName: m.fullName,
           email: m.email?.toLowerCase().trim(),
+          regNum: m.regNum || m.reg_number || '',
           year: m.year,
           branch: m.branch,
           checked_in: false,
@@ -160,7 +161,21 @@ export async function POST(req: Request) {
 
     if (regError) {
       console.error('Registration insert failed:', regError);
+      if (teamId) {
+        await supabase.from('teams').delete().eq('id', teamId);
+      }
       return NextResponse.json({ error: 'Registration failed. Please try again.' }, { status: 500 });
+    }
+
+    if (teamId) {
+      const { error: teamLinkError } = await supabase
+        .from('teams')
+        .update({ registration_id: registrationId })
+        .eq('id', teamId);
+
+      if (teamLinkError) {
+        console.error('Team registration link failed:', teamLinkError);
+      }
     }
 
     // 6. Asynchronously send confirmation email if confirmed
@@ -175,9 +190,9 @@ export async function POST(req: Request) {
       sendTicketEmail({
         to: lead_email,
         name: attendeeName,
-        eventTitle: matchingEvent.title,
-        eventDate: matchingEvent.date_start,
-        eventLocation: matchingEvent.location,
+        eventTitle: event.title,
+        eventDate: event.date_start,
+        eventLocation: event.location,
         ticketUrl,
         qrPayload: hashPayload,
       }).catch((e) => console.error('[Email Dispatcher Error]:', e));

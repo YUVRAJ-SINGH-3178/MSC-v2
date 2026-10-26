@@ -125,7 +125,7 @@ export async function POST(req: Request) {
       return members.some((m: any) => {
         const mName = (m.name || m.fullName || '').toLowerCase().trim();
         const mEmail = (m.email || '').toLowerCase().trim();
-        const mReg = (m.reg_number || m.regNumber || '').toLowerCase().trim();
+        const mReg = (m.regNum || m.reg_number || m.regNumber || '').toLowerCase().trim();
         return (
           mEmail === cleanQ ||
           mName === cleanQ ||
@@ -143,11 +143,11 @@ export async function POST(req: Request) {
       });
     }
 
-    if (matchedReg.status === 'cancelled') {
+    if (matchedReg.status !== 'confirmed') {
       return NextResponse.json({
         success: false,
         verified: false,
-        error: `Registration for "${query}" is marked as cancelled. Certificates cannot be issued for cancelled registrations.`,
+        error: `Registration for "${query}" is not confirmed. Certificates are available only for confirmed attendees.`,
       });
     }
 
@@ -159,14 +159,26 @@ export async function POST(req: Request) {
     const memberMatch = members.find((m: any) => {
       const mName = (m.name || m.fullName || '').toLowerCase().trim();
       const mEmail = (m.email || '').toLowerCase().trim();
-      const mReg = (m.reg_number || m.regNumber || '').toLowerCase().trim();
+      const mReg = (m.regNum || m.reg_number || m.regNumber || '').toLowerCase().trim();
       return mEmail === cleanQ || mName === cleanQ || (cleanQ.length >= 3 && mName.includes(cleanQ)) || mReg === cleanQ;
     });
 
     if (memberMatch) {
       participantName = memberMatch.name || memberMatch.fullName || participantName;
-      participantRegNum = memberMatch.reg_number || memberMatch.regNumber || participantRegNum;
+      participantRegNum = memberMatch.regNum || memberMatch.reg_number || memberMatch.regNumber || participantRegNum;
       participantEmail = memberMatch.email || participantEmail;
+    }
+
+    const participantCheckedIn = memberMatch
+      ? Boolean(memberMatch.checked_in)
+      : Boolean(matchedReg.checked_in);
+
+    if (!participantCheckedIn) {
+      return NextResponse.json({
+        success: false,
+        verified: false,
+        error: `No completed attendance record was found for "${query}". Certificates are available only after event check-in.`,
+      });
     }
 
     const eventDateFormatted = new Date(event.date_start).toLocaleDateString('en-US', {
@@ -182,11 +194,11 @@ export async function POST(req: Request) {
         name: participantName.toUpperCase(),
         email: participantEmail,
         registration_number: participantRegNum,
-        college: matchedReg.form_data?.college || 'SRM University-AP',
+        college: matchedReg.form_data?.college || matchedReg.form_data?.college_name || 'SRM University-AP',
         ticket_id: matchedReg.form_data?.ticket_id || matchedReg.hash_payload?.slice(0, 8) || matchedReg.id.slice(0, 8),
         role: matchedReg.form_data?.role || (matchedReg.team_data?.team_name ? 'Team Member' : 'Solo Participant'),
         team_name: matchedReg.team_data?.team_name || 'Individual',
-        checked_in: Boolean(matchedReg.checked_in),
+        checked_in: participantCheckedIn,
         status: matchedReg.status,
         event_title: event.title,
         event_date: eventDateFormatted,
