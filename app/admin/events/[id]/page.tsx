@@ -788,6 +788,14 @@ export default function PerEventManagementPage({ params }: { params: Promise<{ i
             <QrCode size={16} /> Launch Camera Scanner
           </Link>
 
+          <Link
+            href={`/admin/events/${eventId}/pricing`}
+            className="fluent-btn fluent-btn-secondary"
+            style={{ fontSize: '13px' }}
+          >
+            Manage Ticket Pricing
+          </Link>
+
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="fluent-btn fluent-btn-secondary"

@@ -143,8 +143,38 @@ export default function EventDetailClient({
   // Submit / Loading
   const [submitting, setSubmitting] = useState(false);
   const [noRefundAccepted, setNoRefundAccepted] = useState(false);
+  const [ticketCategories, setTicketCategories] = useState<any[]>([]);
+  const [ticketCategoriesLoading, setTicketCategoriesLoading] = useState(false);
+  const [ticketCategoriesError, setTicketCategoriesError] = useState(false);
+  const [selectedTicketCategoryId, setSelectedTicketCategoryId] = useState('');
+  const [promoCode, setPromoCode] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [confirmedTicket, setConfirmedTicket] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (event.form_requirements?.event_pricing !== 'paid') return;
+    let active = true;
+    setTicketCategoriesLoading(true);
+    fetch(`/api/events/ticket-options?event_id=${encodeURIComponent(event.id)}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load ticket categories.');
+        if (active) {
+          setTicketCategoriesError(false);
+          setTicketCategories(data.categories || []);
+          if (data.categories?.length === 1) setSelectedTicketCategoryId(data.categories[0].id);
+        }
+      })
+      .catch((error) => {
+        console.error('[Ticket categories]:', error);
+        if (active) {
+          setTicketCategoriesError(true);
+          setErrorMsg('Unable to load ticket options. Please refresh and try again.');
+        }
+      })
+      .finally(() => { if (active) setTicketCategoriesLoading(false); });
+    return () => { active = false; };
+  }, [event.id, event.form_requirements?.event_pricing]);
 
   // Ticket Lookup Tab states
   const [lookupQuery, setLookupQuery] = useState('');
@@ -192,6 +222,14 @@ export default function EventDetailClient({
     e.preventDefault();
     if (isRegistrationClosed) {
       setErrorMsg('Registrations are closed for this event.');
+      return;
+    }
+    if (event.form_requirements?.event_pricing === 'paid' && (ticketCategoriesLoading || ticketCategoriesError)) {
+      setErrorMsg('Ticket options are still loading or could not be loaded. Please refresh and try again.');
+      return;
+    }
+    if (event.form_requirements?.event_pricing === 'paid' && ticketCategories.length > 0 && !selectedTicketCategoryId) {
+      setErrorMsg('Please select a ticket category.');
       return;
     }
     if (!isFree && !noRefundAccepted) {
@@ -269,9 +307,14 @@ export default function EventDetailClient({
               event_id: event.id,
               registration_id: data.registration_id,
               idempotency_key: idempotencyKey,
+              ticket_category_id: selectedTicketCategoryId || null,
+              promo_code: promoCode.trim(),
             }),
           });
           const orderData = await orderRes.json();
+          if (!orderRes.ok || !orderData.success || !orderData.order_id) {
+            throw new Error(orderData.error || 'Unable to prepare your payment. Please try again.');
+          }
 
           const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
@@ -816,6 +859,50 @@ export default function EventDetailClient({
                   )}
 
                   <form onSubmit={handleRegistration} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {!isFree && ticketCategoriesLoading && (
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading available ticket categories…</p>
+                )}
+                {!isFree && ticketCategories.length > 0 && (
+                  <div>
+                    <label htmlFor="ticket-category" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                      Ticket Category
+                    </label>
+                    <select
+                      id="ticket-category"
+                      value={selectedTicketCategoryId}
+                      onChange={(e) => setSelectedTicketCategoryId(e.target.value)}
+                      required
+                      className="fluent-input"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="">Select a ticket category</option>
+                      {ticketCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name} · ₹{(category.current_price_paise / 100).toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!isFree && (
+                  <div>
+                    <label htmlFor="promo-code" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                      Promo Code (optional)
+                    </label>
+                    <input
+                      id="promo-code"
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase().slice(0, 64))}
+                      placeholder="Enter promo code"
+                      className="fluent-input"
+                      maxLength={64}
+                    />
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>
+                      Any discount is validated securely before your Razorpay order is created.
+                    </p>
+                  </div>
+                )}
                 {/* Mode: Solo vs Team */}
                 {event.form_requirements?.allow_teams && (
                   <div>
@@ -1114,7 +1201,7 @@ export default function EventDetailClient({
                     ? 'Processing Entry...'
                     : isFree
                     ? 'Confirm Free Registration'
-                    : `Proceed to Razorpay Checkout (₹${event.form_requirements?.registration_fee || 0})`}
+                    : 'Proceed to Razorpay Checkout'}
                 </button>
               </form>
             </>
